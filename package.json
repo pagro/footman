@@ -1,0 +1,16 @@
+{
+  "name": "infantry-v100-multiplayer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Server-authoritative multiplayer version of the v100 Infantry browser prototype",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
