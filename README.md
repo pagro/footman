@@ -68,3 +68,12 @@ npm install
 
 Start command:
 npm start
+
+
+## Player names / visibility UI
+
+- The class picker includes a player-name field.
+- Human teammates display that chosen name.
+- Enemy humans display only their chosen name.
+- Enemy bots display only `ENEMY`.
+- Enemy HP, Energy, bounty, class text, and bars are hidden from opponents.

@@ -353,6 +353,7 @@ function makeEntity(room,id,team,isBot=false,index=0){
   const sp=spawnFor(room,team,12,index);
   const e={
     id,team,isBot,ready:isBot,
+    playerName:isBot?'':`Player`,
     x:sp.x,y:sp.y,r:12,classId:'footman',pendingClassId:'footman',
     hp:175,maxHp:175,energy:150,maxEnergy:150,lastHit:99,energyRegen:12,
     vx:0,vy:0,angle:team==='blue'?0:Math.PI,
@@ -1065,7 +1066,7 @@ function returnAllToBases(room){
 
 function serializeEntity(e){
   return {
-    id:e.id,team:e.team,isBot:e.isBot,classId:e.classId,pendingClassId:e.pendingClassId,
+    id:e.id,team:e.team,isBot:e.isBot,playerName:e.playerName||'',classId:e.classId,pendingClassId:e.pendingClassId,
     x:e.x,y:e.y,vx:e.vx,vy:e.vy,angle:e.angle,r:e.r,
     hp:e.hp,maxHp:e.maxHp,energy:e.energy,maxEnergy:e.maxEnergy,deadTimer:e.deadTimer,alive:e.alive,ready:e.ready,
     fireCd:e.fireCd,rifleBurstTimer:e.rifleBurstTimer,plasmaSmgBurstTimer:e.plasmaSmgBurstTimer,
@@ -1143,6 +1144,12 @@ wss.on('connection',ws=>{
     if(!ws.roomCode)return;
     const room=rooms.get(ws.roomCode);if(!room)return;
     const pid=room.clients.get(ws),p=room.players.get(pid);if(!p)return;
+    if(msg.type==='name'){
+      const raw=String(msg.name||'').trim();
+      const clean=raw.replace(/[<>\n\r\t]/g,'').slice(0,18);
+      p.playerName=clean || 'Player';
+      return;
+    }
     if(msg.type==='input'){
       p.input.strafe=clamp(Number(msg.strafe)||0,-1,1);p.input.forward=clamp(Number(msg.forward)||0,-1,1);
       if(Number.isFinite(Number(msg.aim)))p.input.aim=Number(msg.aim);

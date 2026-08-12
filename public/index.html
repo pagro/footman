@@ -102,6 +102,23 @@
     font:700 11px system-ui;pointer-events:none
   }
 
+
+  #playerNameInput{
+    width:100%;
+    box-sizing:border-box;
+    margin:3px 0 7px;
+    padding:7px 9px;
+    border:1px solid rgba(255,255,255,.22);
+    border-radius:8px;
+    background:rgba(5,10,16,.88);
+    color:white;
+    font:700 13px system-ui;
+    outline:none;
+  }
+  #playerNameInput:focus{
+    border-color:rgba(145,210,255,.75);
+  }
+
 </style>
 </head>
 <body>
@@ -828,6 +845,7 @@ const classes = {
 
 // ---------- AUTHORITATIVE MULTIPLAYER ----------
 let netSocket=null,netConnected=false,netRoomCode='',netPlayerId='',netJoined=false;
+let netPlayerName='Player';
 let netSendTimer=0;
 const netEnemyCache=new Map();
 
@@ -875,6 +893,7 @@ function mpConnect(){
       if(input)input.value=netRoomCode;
       document.getElementById('mpLobby')?.classList.add('hidden');
       mpBadge();
+      setMultiplayerName(netPlayerName);
       renderRespawnClassPicker();
       return;
     }
@@ -1056,6 +1075,11 @@ function applyNetworkSnapshot(msg){
 function mpCommand(command){
   if(netJoined)mpSend({type:'command',command});
 }
+function setMultiplayerName(value){
+  const clean=String(value||'').trim().replace(/[<>\n\r\t]/g,'').slice(0,18);
+  netPlayerName=clean || 'Player';
+  if(netJoined)mpSend({type:'name',name:netPlayerName});
+}
 
 const player={
   x:285,y:world.h/2,r:12,team:'blue',classId:'footman',pendingClassId:'footman',
@@ -1192,6 +1216,9 @@ function renderClassStats(){}
 function selectRespawnClass(classId){
   if(!classes[classId]||!netJoined)return;
 
+  const nameInput=document.getElementById('playerNameInput');
+  if(nameInput) setMultiplayerName(nameInput.value);
+
   player.pendingClassId=classId;
   mpSend({type:'class',classId});
 
@@ -1218,17 +1245,48 @@ function renderRespawnClassPicker(){
 
   const order=['footman','heavy','assassin','medic'];
   box.classList.add('show');
+
   const title=!roundStarted
     ? `<div style="width:100%;text-align:center;font-size:14px;font-weight:900;margin-bottom:3px">CHOOSE CLASS TO START</div>`
     : `<div style="width:100%;text-align:center;font-size:11px;font-weight:800;margin-bottom:2px">NEXT CLASS</div>`;
-  box.innerHTML=title+order.map(id=>{
+
+  const nameField=`
+    <input
+      id="playerNameInput"
+      type="text"
+      maxlength="18"
+      autocomplete="off"
+      spellcheck="false"
+      placeholder="PLAYER NAME"
+      value="${String(netPlayerName||'Player').replace(/"/g,'&quot;')}"
+    >`;
+
+  box.innerHTML=title+nameField+order.map(id=>{
     const cls=classes[id];
     const selected=id===player.pendingClassId ? ' selected' : '';
     return `<button type="button" class="respawnClassBtn${selected}" onpointerdown="event.preventDefault(); selectRespawnClass('${id}')">
       ${cls.name}
-      <span class="stats">HP ${cls.maxHp} · E ${cls.maxEnergy}</span>
     </button>`;
   }).join('');
+
+  const input=document.getElementById('playerNameInput');
+  if(input){
+    // Keep typing from becoming gameplay input.
+    for(const eventName of ['keydown','keyup','keypress']){
+      input.addEventListener(eventName,e=>e.stopPropagation());
+    }
+    input.addEventListener('input',()=>{
+      netPlayerName=input.value.slice(0,18);
+    });
+    input.addEventListener('change',()=>{
+      setMultiplayerName(input.value);
+      input.value=netPlayerName;
+    });
+    input.addEventListener('blur',()=>{
+      setMultiplayerName(input.value);
+      input.value=netPlayerName;
+    });
+  }
 }
 
 
@@ -2836,7 +2894,8 @@ function draw(){
 
     ctx.font='bold 10px system-ui';
     ctx.fillStyle='rgba(175,220,255,.95)';
-    ctx.fillText('ALLY',ally.x-13,ally.y-41);
+    const allyLabel=ally.isBot ? 'ALLY' : (ally.playerName||'ALLY');
+    ctx.fillText(allyLabel,ally.x-ctx.measureText(allyLabel).width/2,ally.y-41);
   }
 
   // Enemies fade in/out as shared LOS is gained or lost.
@@ -2858,14 +2917,17 @@ function draw(){
     drawDisruptionZaps(e);
     const body = e.classId==='heavy' ? '#c86f45' : e.classId==='assassin' ? '#9a78ff' : e.classId==='medic' ? '#42c98e' : (e.bounty>=50?'#ff9d3b':(e.team==='blue'?'#4d94d8':'#df5757'));
     const detail= e.classId==='heavy' ? '#ffe2cf' : e.classId==='assassin' ? '#ead8ff' : e.classId==='medic' ? '#d9ffef' : '#ffd2d2';
+
     drawSoldier(e.x,e.y,e.angle,body,detail,e.r,e.classId);
     drawKnifeSlash(e);
-    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(e.x-18,e.y-31,36,4); ctx.fillStyle='#68b8ff'; ctx.fillRect(e.x-18,e.y-31,36*(e.energy/e.maxEnergy),4);
-    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(e.x-18,e.y-25,36,5); ctx.fillStyle='#e85f5f'; ctx.fillRect(e.x-18,e.y-25,36*(e.hp/e.maxHp),5);
-    if(e.bounty>0){ ctx.fillStyle='#ffd36b'; ctx.font='bold 12px system-ui'; ctx.fillText('$'+e.bounty,e.x-12,e.y-37); }
-    ctx.font='bold 11px system-ui'; ctx.fillStyle='#8fd0ff'; ctx.fillText(`E ${Math.ceil(e.energy)}/${e.maxEnergy} • ${Math.round(100*e.energy/e.maxEnergy)}% DR`,e.x-34,e.y-42);
-    ctx.fillStyle='#9bf0a2'; ctx.fillText(`H ${Math.ceil(e.hp)}/${e.maxHp}`,e.x-25,e.y-54);
-    ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='10px system-ui'; ctx.fillText(classes[e.classId].name,e.x-22,e.y+25);
+
+    // Enemy information is intentionally minimal:
+    // human opponents show their chosen name; bots show only ENEMY.
+    const enemyLabel=e.isBot ? 'ENEMY' : (e.playerName||'ENEMY');
+    ctx.font='bold 11px system-ui';
+    ctx.fillStyle='rgba(255,220,220,.92)';
+    const ew=ctx.measureText(enemyLabel).width;
+    ctx.fillText(enemyLabel,e.x-ew/2,e.y-30);
 
     ctx.restore();
   }
