@@ -1,0 +1,3067 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Infantry Mobile Prototype v22</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#12151b;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff;touch-action:none}
+  #wrap{position:relative;width:100%;height:100%}
+  canvas{display:block;width:100%;height:100%;background:#1b222c}
+  .hud{position:absolute;left:10px;top:8px;font-weight:700;text-shadow:0 2px 3px #000;pointer-events:none;line-height:1.32;max-width:65vw}
+  .small{font-size:12px;font-weight:600;opacity:.88}
+  .stick{position:absolute;width:130px;height:130px;border-radius:50%;border:2px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);bottom:22px;touch-action:none}
+  #moveStick{left:20px}
+  #aimStick{right:20px}
+  .nub{position:absolute;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.26);left:42px;top:42px}
+  #help{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:11px;opacity:.72;text-align:center;pointer-events:none}
+  #loadout{position:absolute;right:8px;top:46%;transform:translateY(-50%);width:152px;display:flex;flex-direction:column;gap:5px;pointer-events:auto}
+  .slot{background:rgba(10,14,20,.56);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:5px 6px;box-shadow:0 2px 8px rgba(0,0,0,.20);transition:opacity .08s,filter .08s,background .08s}
+  .slot.cooldown{opacity:.38;filter:brightness(.48) saturate(.55);background:rgba(5,7,10,.72)}
+  .slot{position:relative}
+  .slot .cdtime{
+    margin-left:auto;
+    min-width:28px;
+    text-align:right;
+    font-size:10px;
+    font-weight:900;
+    opacity:.95;
+  }
+  .slot .row{display:flex;align-items:center;gap:5px;min-width:0}
+  .slot .key{min-width:24px;height:18px;border-radius:5px;background:rgba(255,255,255,.08);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .slot .name{font-size:10px;font-weight:800;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.15;flex:1;min-width:0;word-break:normal}
+  .slot .desc{font-size:8px;opacity:.65;margin-top:2px}
+  .slot.phys{border-left:2px solid rgba(255,227,123,.82)}
+  .slot.eng{border-left:2px solid rgba(116,216,255,.9)}
+  .slot.util{border-left:2px solid rgba(255,170,90,.9)}
+  #repulsorBtn{position:absolute;right:28px;bottom:166px;width:66px;height:66px;border-radius:50%;border:2px solid rgba(180,225,255,.34);background:rgba(55,115,160,.22);color:white;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;text-align:center;touch-action:none;user-select:none;box-shadow:0 0 14px rgba(90,190,255,.10)}
+  #repulsorBtn.ready{border-color:rgba(190,235,255,.72);background:rgba(65,145,200,.30);box-shadow:0 0 16px rgba(100,205,255,.20)}
+  #repulsorBtn.cooldown{opacity:.42}
+  #respawnClassPicker{
+    position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);
+    display:none;gap:6px;flex-wrap:wrap;justify-content:center;
+    width:min(360px,88vw);pointer-events:auto;z-index:5
+  }
+  #respawnClassPicker.show{display:flex}
+  .respawnClassBtn{
+    width:78px;padding:7px 5px;border-radius:8px;
+    border:1px solid rgba(255,255,255,.16);
+    background:rgba(8,12,18,.72);color:white;
+    font-size:10px;font-weight:800;line-height:1.2;
+    box-shadow:0 2px 8px rgba(0,0,0,.28);touch-action:manipulation
+  }
+  .respawnClassBtn .stats{display:block;font-size:8px;font-weight:600;opacity:.68;margin-top:3px}
+  .respawnClassBtn.selected{
+    border-color:rgba(125,205,255,.95);
+    background:rgba(55,125,175,.55);
+    box-shadow:0 0 12px rgba(90,190,255,.25)
+  }
+  .slot.secondary{cursor:pointer}
+
+  #switchTeamBtn{
+    position:absolute;
+    left:12px;
+    bottom:56px;
+    z-index:9;
+    min-width:94px;
+    padding:8px 10px;
+    border:1px solid rgba(255,255,255,.24);
+    border-radius:10px;
+    background:rgba(7,12,18,.78);
+    color:#fff;
+    font:800 11px system-ui;
+    cursor:pointer;
+  }
+  #switchTeamBtn:hover{background:rgba(42,74,105,.9)}
+
+
+  #mpLobby{
+    position:absolute;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+    background:rgba(3,7,12,.88);font-family:system-ui,sans-serif;
+  }
+  #mpLobby.hidden{display:none}
+  #mpPanel{
+    width:min(430px,calc(100vw - 32px));padding:20px;border:1px solid rgba(255,255,255,.18);
+    border-radius:16px;background:#111923;color:#fff;box-sizing:border-box;
+  }
+  #mpPanel h2{margin:0 0 8px;font-size:24px}
+  #mpPanel p{margin:0 0 14px;color:rgba(255,255,255,.72);font-size:13px}
+  #mpPanel input{
+    width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.2);border-radius:10px;
+    background:#0b1118;color:#fff;padding:11px 12px;font:600 16px system-ui;text-transform:uppercase;margin-bottom:10px
+  }
+  #mpActions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #mpActions button{
+    border:1px solid rgba(255,255,255,.2);border-radius:10px;background:#244661;color:#fff;
+    padding:11px 12px;font:800 14px system-ui;cursor:pointer
+  }
+  #mpStatus{min-height:18px;margin-top:12px;color:#9fd4ff;font:700 12px system-ui}
+  #mpBadge{
+    position:absolute;left:12px;bottom:12px;z-index:12;padding:6px 9px;border-radius:8px;
+    background:rgba(5,9,15,.72);border:1px solid rgba(255,255,255,.14);color:#b8dcff;
+    font:700 11px system-ui;pointer-events:none
+  }
+
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <div id="mpLobby">
+    <div id="mpPanel">
+      <h2>Multiplayer</h2>
+      <p>Create a room or enter your friend's room code. This build keeps the v100 arena, models, loadouts, LOS, generators, and class behavior while the server owns the match.</p>
+      <input id="mpRoomInput" maxlength="4" placeholder="ROOM CODE">
+      <div id="mpActions">
+        <button id="mpCreateBtn" type="button">Create Room</button>
+        <button id="mpJoinBtn" type="button">Join Room</button>
+      </div>
+      <div id="mpStatus">Connecting to server…</div>
+    </div>
+  </div>
+  <div id="mpBadge">OFFLINE</div>
+  <div class="hud">
+    <div id="cash">Cash: $0</div>
+    <div id="bounty">Bounty: 0 | Multiplier: 1.00× | Toughness: 0%</div>
+    <div id="score">Class: Footman | Energy: 200/200 (100% DR) | HP: 200/200</div>
+  </div>
+  <div id="loadout"></div>
+  <div id="moveStick" class="stick"><div class="nub"></div></div>
+  <div id="aimStick" class="stick"><div class="nub"></div></div>
+  <div id="repulsorBtn" class="ready">REPULSOR<br>R</div>
+  <button id="switchTeamBtn" type="button">SWITCH TEAM<br>P</button>
+  <div id="respawnClassPicker"></div>
+</div>
+<script>
+const c = document.getElementById('game'), ctx = c.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
+  c.width=W*DPR; c.height=H*DPR; c.style.width=W+'px'; c.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize',resize); resize();
+
+const world={w:1800,h:1100};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rand=(a,b)=>a+Math.random()*(b-a);
+const len=(x,y)=>Math.hypot(x,y)||1;
+function approachAngle(current,target,maxStep){
+  let diff=((target-current+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+  if(Math.abs(diff)<=maxStep) return target;
+  return current+Math.sign(diff)*maxStep;
+}
+
+// ---------- AUDIO ----------
+let audioCtx=null;
+function ensureAudio(){
+  if(!audioCtx){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(AC) audioCtx=new AC();
+  }
+  if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+}
+function tone(freq=440,dur=.06,type='square',gain=.035,slide=0){
+  ensureAudio(); if(!audioCtx) return;
+  const now=audioCtx.currentTime;
+  const osc=audioCtx.createOscillator();
+  const g=audioCtx.createGain();
+  osc.type=type;
+  osc.frequency.setValueAtTime(freq,now);
+  if(slide) osc.frequency.exponentialRampToValueAtTime(Math.max(35,freq+slide),now+dur);
+  g.gain.setValueAtTime(gain*1.2,now);
+  g.gain.exponentialRampToValueAtTime(.0001,now+dur);
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now+dur);
+}
+function noiseBurst(dur=.05,gain=.02,highpass=900){
+  ensureAudio(); if(!audioCtx) return;
+  const sr=audioCtx.sampleRate;
+  const buffer=audioCtx.createBuffer(1,Math.floor(sr*dur),sr);
+  const data=buffer.getChannelData(0);
+  for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1;
+  const src=audioCtx.createBufferSource();
+  const filter=audioCtx.createBiquadFilter();
+  const g=audioCtx.createGain();
+  filter.type='highpass'; filter.frequency.value=highpass;
+  g.gain.setValueAtTime(gain*1.2,audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+dur);
+  src.buffer=buffer; src.connect(filter); filter.connect(g); g.connect(audioCtx.destination); src.start();
+}
+function soundShot(t='rifle'){
+  // Physical weapons: punchy/noisy family, but each has a distinct signature.
+  if(t==='rifle'){
+    noiseBurst(.042,.022,1250); tone(185,.048,'square',.020,-58);
+  }else if(t==='shotgun'){
+    noiseBurst(.085,.040,500); tone(105,.085,'sawtooth',.032,-48);
+  }else if(t==='machinegun'){
+    noiseBurst(.030,.018,1450); tone(215,.034,'square',.016,-72);
+  }else if(t==='carbine'){
+    noiseBurst(.035,.016,1600); tone(255,.038,'square',.014,-70);
+  }else if(t==='physicalPistol'){
+    noiseBurst(.032,.018,1350); tone(245,.050,'square',.018,-85);
+  // Energy weapons: tonal/electronic family, distinct by weapon.
+  }else if(t==='blaster'){
+    tone(690,.085,'sawtooth',.030,-210); tone(1040,.045,'sine',.014,-260);
+  }else if(t==='plasma'){
+    tone(420,.070,'sine',.025,180); tone(760,.052,'triangle',.014,-120);
+  }else if(t==='plasmaSMG'){
+    tone(520,.040,'square',.017,150); tone(880,.032,'triangle',.010,-180);
+  }else if(t==='zapper'){
+    tone(980,.060,'square',.022,-420); tone(1380,.035,'triangle',.012,-520);
+  }else if(t==='cannon'){
+    tone(160,.18,'sawtooth',.040,-65); noiseBurst(.08,.030,240); tone(520,.12,'sine',.016,-250);
+  }else if(t==='knife'){
+    tone(520,.05,'triangle',.020,-150);
+  }else if(t==='energy'){
+    tone(720,.08,'sawtooth',.030,-230); tone(1120,.05,'sine',.016,-300);
+  }else{
+    noiseBurst(.04,.020,1200); tone(180,.045,'square',.020,-55);
+  }
+}
+function soundEnergyAbsorb(){ tone(860,.07,'sine',.03,-300); tone(1280,.045,'triangle',.016,-420); }
+function soundHpHit(){ noiseBurst(.055,.027,520); tone(120,.055,'square',.02,-35); }
+function soundDeath(){ tone(170,.16,'sawtooth',.038,-100); setTimeout(()=>tone(95,.22,'square',.03,-45),55); }
+function soundGrenadeThrow(){ tone(240,.055,'triangle',.024,-80); }
+function soundExplosion(){ noiseBurst(.18,.06,120); tone(82,.20,'sawtooth',.05,-35); }
+function soundHeal(){ tone(460,.08,'sine',.02,120); tone(690,.10,'sine',.015,130); }
+function soundRepulsor(){
+  tone(135,.16,'sine',.042,170);
+  tone(260,.11,'triangle',.025,210);
+  noiseBurst(.10,.020,650);
+}
+function soundCannonCharge(){
+  tone(170,.30,'sine',.020,170);
+  setTimeout(()=>tone(260,.32,'triangle',.018,210),180);
+  setTimeout(()=>tone(380,.34,'sine',.016,260),360);
+}
+function soundCannonLaunch(){
+  tone(115,.20,'sawtooth',.050,120);
+  tone(420,.16,'sine',.022,-180);
+}
+function soundCannonExplosion(){
+  noiseBurst(.22,.070,90);
+  tone(72,.26,'sawtooth',.055,-25);
+  tone(210,.18,'triangle',.024,-80);
+}
+
+// ---------- WORLD GEOMETRY ----------
+const baseFloors=[
+  {x:40,y:330,w:400,h:440,team:'blue',label:'BLUE BASE'},
+  {x:1360,y:330,w:400,h:440,team:'red',label:'RED BASE'}
+];
+
+const walls=[
+  // BLUE BASE — large enclosed shell with one wide east-facing entrance.
+  {x:40,y:330,w:400,h:20,kind:'base',team:'blue'},
+  {x:40,y:750,w:400,h:20,kind:'base',team:'blue'},
+  {x:40,y:350,w:20,h:400,kind:'base',team:'blue'},
+  {x:420,y:350,w:20,h:145,kind:'base',team:'blue'},
+  {x:420,y:605,w:20,h:145,kind:'base',team:'blue'},
+
+  // BLUE GENERATOR BRACKET.
+  // Open toward the WEST/rear wall. Attackers entering from the east must
+  // route above or below this U-shaped enclosure to reach the rear pocket.
+  {x:120,y:455,w:116,h:20,kind:'base',team:'blue'},
+  {x:120,y:625,w:116,h:20,kind:'base',team:'blue'},
+  {x:236,y:455,w:20,h:190,kind:'base',team:'blue'},
+
+  // RED BASE — exact mirror with one wide west-facing entrance.
+  {x:1360,y:330,w:400,h:20,kind:'base',team:'red'},
+  {x:1360,y:750,w:400,h:20,kind:'base',team:'red'},
+  {x:1740,y:350,w:20,h:400,kind:'base',team:'red'},
+  {x:1360,y:350,w:20,h:145,kind:'base',team:'red'},
+  {x:1360,y:605,w:20,h:145,kind:'base',team:'red'},
+
+  // RED GENERATOR BRACKET — exact mirror.
+  // Open toward the EAST/rear wall.
+  {x:1564,y:455,w:116,h:20,kind:'base',team:'red'},
+  {x:1564,y:625,w:116,h:20,kind:'base',team:'red'},
+  {x:1544,y:455,w:20,h:190,kind:'base',team:'red'},
+
+  // WEST UPPER RICOCHET COURT — slightly smaller pieces = wider gaps.
+  {x:480,y:242,w:132,h:22,kind:'ricochet'},
+  {x:628,y:292,w:22,h:104,kind:'ricochet'},
+  {x:506,y:408,w:90,h:20,kind:'ricochet'},
+  {x:442,y:322,w:24,h:74,kind:'cover'},
+
+  // WEST LOWER RICOCHET COURT.
+  {x:480,y:836,w:132,h:22,kind:'ricochet'},
+  {x:628,y:704,w:22,h:104,kind:'ricochet'},
+  {x:506,y:672,w:90,h:20,kind:'ricochet'},
+  {x:442,y:704,w:24,h:74,kind:'cover'},
+
+  // EAST UPPER RICOCHET COURT.
+  {x:1188,y:242,w:132,h:22,kind:'ricochet'},
+  {x:1150,y:292,w:22,h:104,kind:'ricochet'},
+  {x:1204,y:408,w:90,h:20,kind:'ricochet'},
+  {x:1334,y:322,w:24,h:74,kind:'cover'},
+
+  // EAST LOWER RICOCHET COURT.
+  {x:1188,y:836,w:132,h:22,kind:'ricochet'},
+  {x:1150,y:704,w:22,h:104,kind:'ricochet'},
+  {x:1204,y:672,w:90,h:20,kind:'ricochet'},
+  {x:1334,y:704,w:24,h:74,kind:'cover'},
+
+  // CENTRAL DUELING COURT — compact fins with more breathing room.
+  {x:748,y:338,w:108,h:20,kind:'ricochet'},
+  {x:944,y:338,w:108,h:20,kind:'ricochet'},
+  {x:748,y:742,w:108,h:20,kind:'ricochet'},
+  {x:944,y:742,w:108,h:20,kind:'ricochet'},
+
+  {x:716,y:392,w:20,h:94,kind:'ricochet'},
+  {x:1064,y:392,w:20,h:94,kind:'ricochet'},
+  {x:716,y:614,w:20,h:94,kind:'ricochet'},
+  {x:1064,y:614,w:20,h:94,kind:'ricochet'},
+
+  // Inner pillars.
+  {x:820,y:478,w:24,h:62,kind:'cover'},
+  {x:956,y:478,w:24,h:62,kind:'cover'},
+  {x:820,y:560,w:24,h:62,kind:'cover'},
+  {x:956,y:560,w:24,h:62,kind:'cover'},
+
+  // Mid-lane cover islands.
+  {x:548,y:524,w:50,h:50,kind:'crate'},
+  {x:662,y:532,w:60,h:38,kind:'cover'},
+  {x:1078,y:532,w:60,h:38,kind:'cover'},
+  {x:1202,y:524,w:50,h:50,kind:'crate'},
+
+  // Outer-lane anchors.
+  {x:720,y:166,w:74,h:24,kind:'cover'},
+  {x:1006,y:166,w:74,h:24,kind:'cover'},
+  {x:720,y:910,w:74,h:24,kind:'cover'},
+  {x:1006,y:910,w:74,h:24,kind:'cover'},
+
+  // Small isolated crates.
+  {x:584,y:608,w:42,h:42,kind:'crate'},
+  {x:1174,y:450,w:42,h:42,kind:'crate'}
+];
+
+function circleHitsRect(x,y,r,rect){
+  const nx=clamp(x,rect.x,rect.x+rect.w), ny=clamp(y,rect.y,rect.y+rect.h);
+  const dx=x-nx, dy=y-ny;
+  return dx*dx+dy*dy < r*r;
+}
+function hitsWall(x,y,r=0){ for(const w of walls) if(circleHitsRect(x,y,r,w)) return w; return null; }
+function moveWithWalls(ent,dx,dy){
+  let collided=false, ox=ent.x, oy=ent.y;
+  ent.x += dx;
+  if(hitsWall(ent.x,ent.y,ent.r) || circleHitsGenerator(ent.x,ent.y,ent.r)){
+    ent.x=ox; if('vx' in ent) ent.vx*=0.12; collided=true;
+  }
+  ent.y += dy;
+  if(hitsWall(ent.x,ent.y,ent.r) || circleHitsGenerator(ent.x,ent.y,ent.r)){
+    ent.y=oy; if('vy' in ent) ent.vy*=0.12; collided=true;
+  }
+  return collided;
+}
+
+function resolveOpposingPlayerCollision(a,b){
+  if(!a || !b || a.team===b.team) return;
+  const dx=b.x-a.x, dy=b.y-a.y;
+  const minDist=a.r+b.r;
+  const d=Math.hypot(dx,dy);
+  if(d<=0 || d>=minDist) return;
+
+  const nx=dx/d, ny=dy/d;
+  const overlap=minDist-d;
+  const pushA=overlap*.5, pushB=overlap*.5;
+
+  const ax=a.x-nx*pushA, ay=a.y-ny*pushA;
+  const bx=b.x+nx*pushB, by=b.y+ny*pushB;
+
+  if(!hitsWall(ax,ay,a.r)){ a.x=ax; a.y=ay; }
+  if(!hitsWall(bx,by,b.r)){ b.x=bx; b.y=by; }
+
+  // Remove inward velocity so opponents cannot phase through one another.
+  const arv=a.vx*nx+a.vy*ny;
+  if(arv>0){ a.vx-=nx*arv*.8; a.vy-=ny*arv*.8; }
+  const brv=b.vx*nx+b.vy*ny;
+  if(brv<0){ b.vx-=nx*brv*.8; b.vy-=ny*brv*.8; }
+}
+
+function segmentHitsRect(x1,y1,x2,y2,r){
+  let t0=0,t1=1;
+  const dx=x2-x1, dy=y2-y1;
+  const tests=[
+    [-dx, x1-r.x],
+    [ dx, r.x+r.w-x1],
+    [-dy, y1-r.y],
+    [ dy, r.y+r.h-y1]
+  ];
+  for(const [p,q] of tests){
+    if(Math.abs(p)<1e-9){
+      if(q<0) return false;
+    }else{
+      const t=q/p;
+      if(p<0){ if(t>t1) return false; if(t>t0) t0=t; }
+      else { if(t<t0) return false; if(t<t1) t1=t; }
+    }
+  }
+  return true;
+}
+function lineBlocked(x1,y1,x2,y2){
+  for(const w of walls) if(segmentHitsRect(x1,y1,x2,y2,w)) return true;
+  return false;
+}
+
+const VISION_RANGE=520;
+
+function getTeamVisionSources(team){
+  const sources=[];
+
+  if(player.team===team && player.deadTimer<=0){
+    sources.push(player);
+  }
+
+  for(const ally of allies){
+    if(ally.team===team && ally.hp>0) sources.push(ally);
+  }
+
+  for(const e of enemies){
+    if(e.team===team && e.hp>0) sources.push(e);
+  }
+
+  return sources;
+}
+
+function isEntityVisibleToTeam(target,team){
+  if(!target) return false;
+  if(target.team===team) return true;
+
+  // Debug radar: a blue-team pulse reveals every red player map-wide.
+  if(team===player.team && target.team!==player.team && radarRevealTimer>0) return true;
+
+  const sources=getTeamVisionSources(team);
+  for(const source of sources){
+    const d=Math.hypot(target.x-source.x,target.y-source.y);
+    if(d>VISION_RANGE) continue;
+    if(!lineBlocked(source.x,source.y,target.x,target.y)) return true;
+  }
+  return false;
+}
+
+function getLivingTeamMembers(team){
+  const out=[];
+  if(player.team===team && player.deadTimer<=0 && player.hp>0) out.push(player);
+  for(const ally of allies){
+    if(ally.team===team && ally.hp>0) out.push(ally);
+  }
+  for(const e of enemies){
+    if(e.team===team && e.hp>0) out.push(e);
+  }
+  return out;
+}
+
+function chooseVisibleEnemyTarget(observer,enemyTeam){
+  let best=null;
+  let bestDist=Infinity;
+  for(const target of getLivingTeamMembers(enemyTeam)){
+    if(!isEntityVisibleToTeam(target,observer.team)) continue;
+    const d=Math.hypot(target.x-observer.x,target.y-observer.y);
+    if(d<bestDist){
+      bestDist=d;
+      best=target;
+    }
+  }
+  return best;
+}
+
+function isHumanPlayer(ent){
+  return ent===player;
+}
+
+
+function isClearSpawn(x,y,r){
+  if(x<r+6 || x>world.w-r-6 || y<r+6 || y>world.h-r-6) return false;
+  return !hitsWall(x,y,r+2);
+}
+
+function findClearSpawn(preferredX,preferredY,r,region=null){
+  // First try the preferred point, then expand outward in rings.
+  if(isClearSpawn(preferredX,preferredY,r)) return {x:preferredX,y:preferredY};
+
+  for(let radius=20;radius<=240;radius+=20){
+    for(let i=0;i<16;i++){
+      const a=(Math.PI*2*i)/16;
+      const x=preferredX+Math.cos(a)*radius;
+      const y=preferredY+Math.sin(a)*radius;
+      if(region && (x<region.x1 || x>region.x2 || y<region.y1 || y>region.y2)) continue;
+      if(isClearSpawn(x,y,r)) return {x,y};
+    }
+  }
+
+  // Random fallback within a supplied region.
+  const area=region || {x1:40,x2:world.w-40,y1:40,y2:world.h-40};
+  for(let i=0;i<250;i++){
+    const x=rand(area.x1,area.x2), y=rand(area.y1,area.y2);
+    if(isClearSpawn(x,y,r)) return {x,y};
+  }
+
+  // Last-resort known-clear-ish center point, still checked.
+  const fallbacks=[
+    {x:285,y:world.h/2},
+    {x:world.w-285,y:world.h/2},
+    {x:world.w/2,y:world.h/2}
+  ];
+  for(const p of fallbacks) if(isClearSpawn(p.x,p.y,r)) return p;
+  return {x:40+r,y:40+r};
+}
+function chooseHeavySpot(e,target){
+  if(!target) return;
+  const candidates=[];
+  for(const w of walls){
+    if(w.kind==='base') continue;
+    const m=30;
+    candidates.push(
+      {x:w.x-m,y:w.y+w.h/2},
+      {x:w.x+w.w+m,y:w.y+w.h/2},
+      {x:w.x+w.w/2,y:w.y-m},
+      {x:w.x+w.w/2,y:w.y+w.h+m}
+    );
+  }
+  let best=null,bestScore=1e9;
+  for(const p of candidates){
+    if(p.x<40||p.x>world.w-40||p.y<40||p.y>world.h-40||hitsWall(p.x,p.y,e.r)) continue;
+    const dp=Math.hypot(target.x-p.x,target.y-p.y);
+    if(dp<250||dp>500||lineBlocked(p.x,p.y,target.x,target.y)) continue;
+    const travel=Math.hypot(e.x-p.x,e.y-p.y);
+    const score=Math.abs(dp-365)+travel*.25;
+    if(score<bestScore){bestScore=score;best=p;}
+  }
+  if(!best){
+    const a=Math.atan2(e.y-target.y,e.x-target.x);
+    best={
+      x:clamp(target.x+Math.cos(a)*360,40,world.w-40),
+      y:clamp(target.y+Math.sin(a)*360,40,world.h-40)
+    };
+  }
+  e.heavySpotX=best.x;
+  e.heavySpotY=best.y;
+  e.heavySpotTimer=rand(4.5,7.0);
+}
+
+// ---------- GAME STATE ----------
+let cash=0,kills=0,deaths=0;
+let bullets=[], grenades=[], blasts=[], heals=[], healJobs=[], repulsorPulses=[], radarPulses=[], enemies=[], allies=[], corpses=[];
+let radarRevealTimer=0;
+
+const generators=[
+  {
+    team:'blue',x:150,y:505,w:60,h:90,hp:1200,maxHp:1200,destroyed:false,
+    // Weak point faces INWARD toward the base entrance / battlefield.
+    backDoor:{x:202,y:528,w:12,h:44,side:'east'},
+    interior:{x:60,y:350,w:360,h:400}
+  },
+  {
+    team:'red',x:1590,y:505,w:60,h:90,hp:1200,maxHp:1200,destroyed:false,
+    // Weak point faces INWARD toward the base entrance / battlefield.
+    backDoor:{x:1586,y:528,w:12,h:44,side:'west'},
+    interior:{x:1380,y:350,w:360,h:400}
+  }
+];
+
+function pointInRect(x,y,r){
+  return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h;
+}
+
+function circleHitsGenerator(x,y,r=0,gen=null){
+  const list=gen?[gen]:generators;
+  for(const g of list){
+    const nx=clamp(x,g.x,g.x+g.w), ny=clamp(y,g.y,g.y+g.h);
+    const dx=x-nx, dy=y-ny;
+    if(dx*dx+dy*dy < r*r) return g;
+  }
+  return null;
+}
+
+function pointRectDistance(x,y,r){
+  const nx=clamp(x,r.x,r.x+r.w), ny=clamp(y,r.y,r.y+r.h);
+  return Math.hypot(x-nx,y-ny);
+}
+
+function isGeneratorBackDoorHit(gen,x,y,weaponKind){
+  if(weaponKind!=='cannon' && weaponKind!=='grenade' && weaponKind!=='zapper') return false;
+
+  // Weak-point bonuses can only be earned from INSIDE the base building.
+  const inside=pointInRect(x,y,gen.interior);
+  if(!inside) return false;
+
+  const cy=gen.y+gen.h/2;
+  if(Math.abs(y-cy)>70) return false;
+
+  // Weak panel faces INWARD toward each base's entrance/battlefield side:
+  // east for blue, west for red.
+  if(gen.backDoor.side==='west') return x<=gen.x+gen.w*.45;
+  return x>=gen.x+gen.w*.55;
+}
+
+function grenadeEntersGeneratorWeakSpot(g,gen,nextX,nextY){
+  if(!g || !gen || gen.destroyed || g.embeddedGenerator) return false;
+
+  // Must be moving inward through the exposed panel, not merely touching
+  // the generator body from another side.
+  const inward = gen.backDoor.side==='west' ? g.vx>0 : g.vx<0;
+  if(!inward) return false;
+
+  const panel=gen.backDoor;
+  const nx=clamp(nextX,panel.x,panel.x+panel.w);
+  const ny=clamp(nextY,panel.y,panel.y+panel.h);
+  const dx=nextX-nx, dy=nextY-ny;
+  return dx*dx+dy*dy <= g.r*g.r;
+}
+
+function embedGrenadeInGenerator(g,gen,y){
+  g.embeddedGenerator=gen;
+
+  // Seat the grenade just inside the weak-point face. It remains there until
+  // its normal fuse expires and cannot bounce back out.
+  g.x=gen.backDoor.side==='west'
+    ? gen.x+g.r+4
+    : gen.x+gen.w-g.r-4;
+  g.y=clamp(y,gen.y+g.r+3,gen.y+gen.h-g.r-3);
+  g.vx=0;
+  g.vy=0;
+  g.playerBounceCd=999;
+}
+
+function damageGenerator(gen,rawDamage,weaponKind,hitX,hitY){
+  if(!gen || gen.destroyed || rawDamage<=0) return 0;
+
+  let mult=weaponKind==='knife' ? .10 : .25;
+  if(isGeneratorBackDoorHit(gen,hitX,hitY,weaponKind)) mult*=3;
+
+  const dealt=Math.max(0,rawDamage*mult);
+  gen.hp=Math.max(0,gen.hp-dealt);
+
+  if(gen.hp<=0 && !gen.destroyed){
+    gen.destroyed=true;
+    gameOver=true;
+    matchFrozen=false;
+    postVictoryTimer=20;
+    winningTeam=gen.team==='blue' ? 'red' : 'blue';
+    blasts.push({
+      x:gen.x+gen.w/2,
+      y:gen.y+gen.h/2,
+      r:120,
+      life:.65,
+      maxLife:.65,
+      kind:'cannon'
+    });
+    soundCannonExplosion();
+  }
+  return dealt;
+}
+
+function teamForOwner(owner){
+  if(owner==='p') return player.team;
+  if(owner==='a') return allies[0]?.team || player.team;
+  if(owner==='e') return enemies[0]?.team || (player.team==='blue'?'red':'blue');
+  return player.team;
+}
+function enemyGeneratorForOwner(owner){
+  const team=teamForOwner(owner);
+  return generators.find(g=>g.team!==team);
+}
+let keys={}, cam={x:0,y:0};
+const singlePlayer=true;
+let paused=false;
+let roundStarted=false;
+let gameOver=false;
+let winningTeam=null;
+let postVictoryTimer=0;
+let matchFrozen=false;
+let mouse={x:W/2,y:H/2,left:false,right:false,middle:false};
+
+const WEAPON_MAX_MARK=5;
+const weaponKinds=[
+  'rifle','shotgun','blaster','grenade','machinegun','cannon',
+  'plasmaPistol','plasmaSMG','physicalPistol','knife','zapper','medicGun','heal'
+];
+
+function makeDefaultWeaponMarks(){
+  const marks={};
+  for(const kind of weaponKinds) marks[kind]=1;
+  return marks;
+}
+
+function getWeaponMark(ent,kind){
+  if(!ent.weaponMarks) ent.weaponMarks=makeDefaultWeaponMarks();
+  return Math.max(1,Math.min(WEAPON_MAX_MARK,ent.weaponMarks[kind]||1));
+}
+
+function setWeaponMark(ent,kind,mark){
+  if(!weaponKinds.includes(kind)) return;
+  if(!ent.weaponMarks) ent.weaponMarks=makeDefaultWeaponMarks();
+  ent.weaponMarks[kind]=Math.max(1,Math.min(WEAPON_MAX_MARK,Math.round(mark)));
+}
+
+function romanMark(mark){
+  return ['I','II','III','IV','V'][Math.max(1,Math.min(5,mark))-1];
+}
+
+const weaponStats = {
+  rifle:{
+    damage:28,
+    speed:194.4,
+    burstCount:3,
+    burstGap:.18,
+    cooldown:.70
+  },
+  machinegun:{
+    damage:22.5,
+    speed:204,
+    fireInterval:.114,
+    spinUp:.75,
+    spread:.05
+  },
+  blaster:{
+    damage:34,
+    speed:132,
+    energyCostPct:.075,
+    cooldown:1.0,
+    energyMult:2.0,
+    hpMult:.5,
+    life:1.8,
+    bounces:1,
+    regenSlowDuration:3,
+    regenSlowMult:.35
+  },
+  cannon:{
+    speed:104,
+    energyCostPct:.50,
+    chargeTime:2.0,
+    cooldown:2.2,
+    life:2.64,
+    bounces:2,
+    radius:10,
+    explosionRadius:68,
+    explosionDamage:120,
+    energyMult:2.6,
+    hpMult:.35
+  },
+  plasmaPistol:{
+    damage:24,
+    speed:200,
+    energyCost:8,
+    cooldown:.55,
+    energyMult:1.5,
+    hpMult:.6,
+    radius:2.2
+  },
+  plasmaSMG:{
+    damage:15,
+    speed:210,
+    energyCost:3.5,
+    burstCount:4,
+    burstGap:.08,
+    burstCooldown:.65,
+    energyMult:1.45,
+    hpMult:.58,
+    radius:1.35,
+    life:.868,
+    spread:.028
+  },
+  physicalPistol:{
+    damage:32,
+    speed:205,
+    cooldown:.48,
+    radius:2.4,
+    life:1.15
+  },
+  knife:{
+    damage:95,
+    range:29.64,
+    cooldown:.65,
+    energyMult:.7,
+    hpMult:1.5
+  },
+  zapper:{
+    damage:12,
+    speed:240,
+    energyCost:15,
+    cooldown:10.0,
+    range:185,
+    life:.58,
+    energyMult:1.15,
+    hpMult:.35,
+    radius:3,
+    slowDuration:3,
+    zapRechargeExtra:3
+  },
+  medicGun:{
+    damage:20,
+    speed:188,
+    burstCount:2,
+    burstGap:.22,
+    cooldown:1.1
+  }
+};
+
+const classes = {
+  footman: {
+    name:'Footman', maxHp:175, maxEnergy:150, speed:47, accel:95, drag:2.6, energyRegen:12, weight:'Medium',
+    weapon1:{name:'Physical Rifle', kind:'rifle'},
+    weapon2:{name:'Energy Blaster', kind:'blaster'},
+    weapon3:{name:'Frag Grenade', kind:'grenade'}
+  },
+  heavy: {
+    name:'Heavy', maxHp:200, maxEnergy:200, speed:34, accel:72, drag:2.9, energyRegen:10, weight:'Heavy',
+    weapon1:{name:'Machine Gun', kind:'machinegun'},
+    weapon2:{name:'Energy Cannon', kind:'cannon'},
+    weapon3:{name:'Frag Grenade', kind:'grenade'}
+  },
+  assassin: {
+    name:'Assassin', maxHp:125, maxEnergy:200, speed:49.6, accel:125, drag:2.3, energyRegen:14, weight:'Light', radius:9.6,
+    weapon1:{name:'Plasma SMG', kind:'plasmaSMG'},
+    weapon2:{name:'Knife', kind:'knife'},
+    weapon3:{name:'Zapper', kind:'zapper'}
+  },
+  medic: {
+    name:'Medic', maxHp:150, maxEnergy:150, speed:50, accel:102, drag:2.5, energyRegen:13, weight:'Medium',
+    weapon1:{name:'Light Carbine', kind:'medicGun'},
+    weapon2:{name:'Plasma Pistol', kind:'plasmaPistol'},
+    weapon3:{name:'Heal Pulse', kind:'heal'}
+  }
+};
+
+
+// ---------- AUTHORITATIVE MULTIPLAYER ----------
+let netSocket=null,netConnected=false,netRoomCode='',netPlayerId='',netJoined=false;
+let netSendTimer=0;
+const netEnemyCache=new Map();
+
+function mpSetStatus(text,error=false){
+  const el=document.getElementById('mpStatus');
+  if(el){el.textContent=text;el.style.color=error?'#ffaaaa':'#9fd4ff';}
+}
+function mpBadge(){
+  const el=document.getElementById('mpBadge');
+  if(!el)return;
+  el.textContent=netJoined
+    ? `ROOM ${netRoomCode} • ${player.team.toUpperCase()}`
+    : (netConnected?'CONNECTED':'OFFLINE');
+}
+function mpSend(obj){
+  if(netSocket&&netSocket.readyState===WebSocket.OPEN)netSocket.send(JSON.stringify(obj));
+}
+function mpWsUrl(){
+  return `${location.protocol==='https:'?'wss':'ws'}://${location.host}`;
+}
+function mpConnect(){
+  try{netSocket=new WebSocket(mpWsUrl());}
+  catch(_){mpSetStatus('Could not open multiplayer connection.',true);return;}
+
+  netSocket.addEventListener('open',()=>{
+    netConnected=true;
+    mpSetStatus('Connected. Create or join a room.');
+    mpBadge();
+  });
+  netSocket.addEventListener('close',()=>{
+    netConnected=false;netJoined=false;
+    mpSetStatus('Disconnected from server.',true);
+    mpBadge();
+  });
+  netSocket.addEventListener('error',()=>mpSetStatus('Multiplayer connection error.',true));
+
+  netSocket.addEventListener('message',ev=>{
+    let msg;try{msg=JSON.parse(ev.data);}catch(_){return;}
+
+    if(msg.type==='room_created'||msg.type==='room_joined'){
+      netRoomCode=msg.roomCode;
+      netPlayerId=msg.playerId;
+      netJoined=true;
+      const input=document.getElementById('mpRoomInput');
+      if(input)input.value=netRoomCode;
+      document.getElementById('mpLobby')?.classList.add('hidden');
+      mpBadge();
+      renderRespawnClassPicker();
+      return;
+    }
+
+    if(msg.type==='error'){
+      mpSetStatus(msg.message||'Server error.',true);
+      return;
+    }
+
+    if(msg.type==='snapshot')applyNetworkSnapshot(msg);
+    else if(msg.type==='game_event')handleGameEvent(msg.event);
+  });
+}
+function networkBullet(b){
+  return {
+    ...b,
+    owner:b.team===player.team?'a':'e',
+    type:b.type||'physical',
+    color:b.color||null,
+    longBeam:!!b.longBeam,
+    cannonBall:!!b.cannonBall,
+    plasma:!!b.plasma,
+    plasmaSMG:!!b.plasmaSMG,
+    zapper:!!b.zapper
+  };
+}
+
+function playWeaponEventSound(weapon){
+  if(weapon==='rifle') soundShot('rifle');
+  else if(weapon==='shotgun') soundShot('shotgun');
+  else if(weapon==='machinegun') soundShot('machinegun');
+  else if(weapon==='medicGun') soundShot('carbine');
+  else if(weapon==='physicalPistol') soundShot('physicalPistol');
+  else if(weapon==='blaster') soundShot('blaster');
+  else if(weapon==='plasmaPistol') soundShot('plasma');
+  else if(weapon==='plasmaSMG') soundShot('plasmaSMG');
+  else if(weapon==='zapper') soundShot('zapper');
+  else if(weapon==='knife') soundShot('knife');
+  else if(weapon==='cannon') soundCannonLaunch();
+}
+
+function handleGameEvent(ev){
+  if(!ev)return;
+  const localActor=ev.actorId===netPlayerId;
+
+  // Local actions already play immediately through the original v100 functions.
+  if(ev.kind==='weapon_fired'){
+    if(!localActor) playWeaponEventSound(ev.weapon);
+    return;
+  }
+  if(ev.kind==='cannon_charge'){
+    if(!localActor) soundCannonCharge();
+    return;
+  }
+  if(ev.kind==='grenade_throw'){
+    if(!localActor) soundGrenadeThrow();
+    return;
+  }
+  if(ev.kind==='grenade_explosion'){
+    soundExplosion();
+    return;
+  }
+  if(ev.kind==='cannon_explosion'||ev.kind==='generator_destroyed'){
+    soundCannonExplosion();
+    return;
+  }
+  if(ev.kind==='repulsor'){
+    if(!localActor) soundRepulsor();
+    return;
+  }
+  if(ev.kind==='heal'){
+    if(!localActor) soundHeal();
+    return;
+  }
+  if(ev.kind==='hit'&&ev.targetId===netPlayerId){
+    if(ev.shielded) soundEnergyAbsorb();
+    else soundHpHit();
+    return;
+  }
+  if(ev.kind==='death'&&ev.entityId===netPlayerId){
+    soundDeath();
+    return;
+  }
+  if(ev.kind==='radar'&&!localActor){
+    tone(720,.09,'sine',.025,260);
+  }
+}
+
+function applyNetworkSnapshot(msg){
+  const me=msg.players.find(p=>p.id===netPlayerId);
+
+  if(me){
+    const initialized=!!player._netInitialized;
+    const currentX=player.x,currentY=player.y,currentA=player.angle;
+    const currentVx=player.vx||0,currentVy=player.vy||0;
+    Object.assign(player,me);
+    player._netInitialized=true;
+    player._tx=me.x;player._ty=me.y;player._ta=me.angle;
+    if(initialized){
+      const error=Math.hypot(currentX-me.x,currentY-me.y);
+      if(error<90){
+        player.x=currentX;player.y=currentY;player.angle=currentA;
+        player.vx=currentVx;player.vy=currentVy;
+      }
+    }
+    player.team=msg.team||me.team;
+    player.pendingClassId=me.pendingClassId||me.classId;
+    player.energyPulse=player.energyPulse||0;
+    player.weaponMarks=player.weaponMarks||makeDefaultWeaponMarks();
+    if(me.ready&&!roundStarted)roundStarted=true;
+  }
+
+  const sameTeam=[];
+  const seenIds=new Set();
+
+  for(const p of msg.players){
+    if(p.id===netPlayerId)continue;
+
+    if(p.team===player.team){
+      sameTeam.push({
+        ...p,_tx:p.x,_ty:p.y,_ta:p.angle,
+        energyPulse:0,weaponMarks:makeDefaultWeaponMarks()
+      });
+      continue;
+    }
+
+    seenIds.add(p.id);
+    let cached=netEnemyCache.get(p.id);
+    if(!cached){
+      cached={
+        ...p,x:p.x,y:p.y,angle:p.angle,
+        visAlpha:0,energyPulse:0,weaponMarks:makeDefaultWeaponMarks()
+      };
+      netEnemyCache.set(p.id,cached);
+    }
+    const cx=cached.x,cy=cached.y,ca=cached.angle;
+    Object.assign(cached,p);
+    cached._tx=p.x;cached._ty=p.y;cached._ta=p.angle;
+    cached.x=cx;cached.y=cy;cached.angle=ca;
+    cached.visAlpha=Math.min(1,(cached.visAlpha||0)+.20);
+  }
+
+  for(const [id,e] of netEnemyCache){
+    if(!seenIds.has(id)){
+      e.visAlpha=Math.max(0,(e.visAlpha||0)-.14);
+      if(e.visAlpha<=.01)netEnemyCache.delete(id);
+    }
+  }
+
+  allies=sameTeam;
+  enemies=[...netEnemyCache.values()];
+
+  bullets=msg.bullets.map(networkBullet);
+  grenades=msg.grenades.map(g=>({...g,playerBounceCd:0}));
+  generators.splice(0,generators.length,...msg.generators.map(g=>({...g})));
+
+  blasts=msg.effects
+    .filter(x=>x.kind==='grenade'||x.kind==='cannon')
+    .map(x=>({...x}));
+  heals=msg.effects
+    .filter(x=>x.kind==='heal')
+    .map(x=>({...x,source:null}));
+  repulsorPulses=msg.effects
+    .filter(x=>x.kind==='repulsor')
+    .map(x=>({x:x.x,y:x.y,radius:x.r,life:x.life,maxLife:x.maxLife}));
+  corpses=msg.corpses.map(c=>({...c,owner:c.ownerId}));
+
+  radarRevealTimer=msg.radar||0;
+  winningTeam=msg.winningTeam||null;
+  gameOver=!!winningTeam;
+  postVictoryTimer=msg.postVictoryTimer||0;
+  matchFrozen=!!msg.matchFrozen;
+
+  renderLoadout();
+  renderRespawnClassPicker();
+  updateSwitchTeamButton();
+  mpBadge();
+}
+function mpCommand(command){
+  if(netJoined)mpSend({type:'command',command});
+}
+
+const player={
+  x:285,y:world.h/2,r:12,team:'blue',classId:'footman',pendingClassId:'footman',
+  hp:175,maxHp:175,energy:150,maxEnergy:150,lastHit:99,energyRegen:12,energyRegenDelay:4,energyDisruptTimer:0,energyPulse:0,
+  maxSpeed:47,accel:95,drag:2.6,vx:0,vy:0,angle:0,deadTimer:0,
+  fireCd:0, rifleBurstLeft:0, rifleBurstTimer:0, rifleBurstGap:1.0,
+  plasmaSmgBurstLeft:0, plasmaSmgBurstTimer:0,
+  blasterCd:0, shotgunCd:0, footmanSecondary:'blaster', assassinSecondary:'knife', grenadeCd:0,
+  medicPistolCd:0, healCd:0,
+  machineCharge:0, machineBurstLeft:0, machineBurstTimer:0, machineCd:0,
+  cannonCharge:0, cannonCd:0, cannonCharging:false, cannonStartX:0, cannonStartY:0, cannonClickLatch:false,
+  knifeCd:0, knifeAnim:0, utilityCd:0,
+  healCharge:0, healChargeVisual:false, healStartX:0, healStartY:0,
+  repulsorCd:0, slowTimer:0, zapTimer:0, zapRechargeExtra:0, regenSlowTimer:0,
+  streak:0,bounty:0,
+  corpse:null
+};
+
+function applyClassStats(ent, classId){
+  const cls=classes[classId];
+  if(!ent.weaponMarks) ent.weaponMarks=makeDefaultWeaponMarks();
+  ent.classId=classId;
+  ent.maxHp=cls.maxHp; ent.maxEnergy=cls.maxEnergy;
+  ent.hp = Math.min(ent.hp ?? cls.maxHp, cls.maxHp);
+  ent.energy = Math.min(ent.energy ?? cls.maxEnergy, cls.maxEnergy);
+  ent.energyRegen=cls.energyRegen;
+  if(ent.energyRegenDelay===undefined) ent.energyRegenDelay=4;
+  if(ent.energyDisruptTimer===undefined) ent.energyDisruptTimer=0;
+  if(ent.slowTimer===undefined) ent.slowTimer=0;
+  if(ent.zapTimer===undefined) ent.zapTimer=0;
+  if(ent.zapRechargeExtra===undefined) ent.zapRechargeExtra=0;
+  if(ent.regenSlowTimer===undefined) ent.regenSlowTimer=0;
+  ent.maxSpeed=cls.speed; ent.accel=cls.accel; ent.drag=cls.drag;
+  ent.r=cls.radius ?? 12;
+}
+applyClassStats(player, player.classId);
+
+function multiplier(b){ if(b>=200) return 3.0; if(b>=120) return 2.5; if(b>=70) return 2.0; if(b>=35) return 1.5; if(b>=15) return 1.25; return 1.0; }
+function toughness(b){ return Math.min(0.08, Math.floor(b/25)*0.02); }
+
+function getActiveSlotData(){
+  const cls=classes[player.classId];
+  let secondary=cls.weapon2;
+
+  if(player.classId==='footman' && player.footmanSecondary==='shotgun'){
+    secondary={name:'Shotgun',kind:'shotgun'};
+  }else if(player.classId==='assassin' && player.assassinSecondary==='physicalPistol'){
+    secondary={name:'Physical Pistol',kind:'physicalPistol'};
+  }
+
+  return [cls.weapon1,secondary,cls.weapon3];
+}
+
+function getWeaponCooldownRemaining(kind){
+  if(kind==='rifle' || kind==='medicGun') return Math.max(0,player.fireCd||0);
+  if(kind==='plasmaPistol'){
+    return player.classId==='medic'
+      ? Math.max(0,player.medicPistolCd||0)
+      : Math.max(0,player.fireCd||0);
+  }
+  if(kind==='plasmaSMG') return Math.max(0,player.fireCd||0);
+  if(kind==='machinegun') return Math.max(0,player.machineCd||0,player.machineBurstTimer||0);
+  if(kind==='blaster') return Math.max(0,player.blasterCd||0);
+  if(kind==='shotgun') return Math.max(0,player.shotgunCd||0);
+  if(kind==='cannon') return Math.max(0,player.cannonCd||0);
+  if(kind==='physicalPistol') return Math.max(0,player.utilityCd||0);
+  if(kind==='knife') return Math.max(0,player.utilityCd||0);
+  if(kind==='heal') return Math.max(0,player.healCd||0);
+  if(kind==='grenade' || kind==='zapper') return Math.max(0,player.grenadeCd||0);
+  return 0;
+}
+
+function updateLoadoutCooldownVisuals(){
+  const box=document.getElementById('loadout');
+  if(!box) return;
+  const buttons=box.querySelectorAll('.slot');
+  const data=getActiveSlotData();
+  buttons.forEach((button,i)=>{
+    const weapon=data[i];
+    const remaining=weapon ? getWeaponCooldownRemaining(weapon.kind) : 0;
+    const cooling=remaining>0.01;
+    button.classList.toggle('cooldown',cooling);
+
+    let cd=button.querySelector('.cdtime');
+    if(cooling){
+      if(!cd){
+        cd=document.createElement('span');
+        cd.className='cdtime';
+        const row=button.querySelector('.row');
+        if(row) row.appendChild(cd);
+      }
+      cd.textContent=remaining>=10 ? `${Math.ceil(remaining)}s` : `${remaining.toFixed(1)}s`;
+    }else if(cd){
+      cd.remove();
+    }
+  });
+}
+
+function renderLoadout(){
+  const box=document.getElementById('loadout');
+  const cls=classes[player.classId];
+  const data=getActiveSlotData();
+  const slots=[
+    {key:'LMB', data:data[0], c:'phys', swap:false},
+    {key:'RMB', data:data[1], c:'eng secondary', swap:player.classId==='footman' || player.classId==='assassin'},
+    {key:'MMB', data:data[2], c:'util', swap:false}
+  ];
+  box.innerHTML=slots.map((s,i)=>{
+    const mark=getWeaponMark(player,s.data.kind);
+    return `<div class="slot ${s.c}" ${s.swap?'onclick="toggleSecondaryWeapon()"':''}><div class="row"><span class="key">${s.key}</span><span class="name">${s.data.name} Mk ${romanMark(mark)}</span></div></div>`;
+  }).join('');
+  updateLoadoutCooldownVisuals();
+}
+function toggleSecondaryWeapon(){
+  mpCommand('swap');
+
+  // Optimistic UI only; the next server snapshot confirms it.
+  if(player.classId==='footman')
+    player.footmanSecondary=player.footmanSecondary==='blaster'?'shotgun':'blaster';
+  else if(player.classId==='assassin')
+    player.assassinSecondary=player.assassinSecondary==='knife'?'physicalPistol':'knife';
+
+  renderLoadout();
+}
+
+function toggleFootmanSecondary(){
+  toggleSecondaryWeapon();
+}
+
+function renderClassStats(){}
+
+
+
+function selectRespawnClass(classId){
+  if(!classes[classId]||!netJoined)return;
+
+  player.pendingClassId=classId;
+  mpSend({type:'class',classId});
+
+  if(!roundStarted){
+    applyClassStats(player,classId);
+    player.classId=classId;
+    player.hp=player.maxHp;
+    player.energy=player.maxEnergy;
+    roundStarted=true;
+    renderLoadout();
+  }
+  renderRespawnClassPicker();
+}
+
+function renderRespawnClassPicker(){
+  const box=document.getElementById('respawnClassPicker');
+  if(!box) return;
+
+  if(roundStarted && player.deadTimer<=0){
+    box.classList.remove('show');
+    box.innerHTML='';
+    return;
+  }
+
+  const order=['footman','heavy','assassin','medic'];
+  box.classList.add('show');
+  const title=!roundStarted
+    ? `<div style="width:100%;text-align:center;font-size:14px;font-weight:900;margin-bottom:3px">CHOOSE CLASS TO START</div>`
+    : `<div style="width:100%;text-align:center;font-size:11px;font-weight:800;margin-bottom:2px">NEXT CLASS</div>`;
+  box.innerHTML=title+order.map(id=>{
+    const cls=classes[id];
+    const selected=id===player.pendingClassId ? ' selected' : '';
+    return `<button type="button" class="respawnClassBtn${selected}" onpointerdown="event.preventDefault(); selectRespawnClass('${id}')">
+      ${cls.name}
+      <span class="stats">HP ${cls.maxHp} · E ${cls.maxEnergy}</span>
+    </button>`;
+  }).join('');
+}
+
+
+function spawnTestAlly(){
+  const spawn=findClearSpawn(
+    330,
+    world.h/2,
+    12,
+    {x1:220,x2:405,y1:500,y2:600}
+  );
+
+  const ally={
+    x:spawn.x,y:spawn.y,r:12,team:'blue',classId:'footman',
+    hp:175,maxHp:175,energy:150,maxEnergy:150,
+    lastHit:99,energyRegen:12,energyRegenDelay:4,energyDisruptTimer:0,energyPulse:0,
+    slowTimer:0,zapTimer:0,zapRechargeExtra:0,regenSlowTimer:0,
+    vx:0,vy:0,angle:0,maxSpeed:43,accel:95,drag:2.6,
+    fireCd:0,rifleBurstLeft:0,rifleBurstTimer:0,
+    blasterCd:0,
+    patrolIndex:0,patrolPause:0,
+    weaponMarks:makeDefaultWeaponMarks()
+  };
+  allies.push(ally);
+}
+
+const testAllyPatrol=[
+  {x:395,y:550},{x:475,y:550},
+  {x:610,y:650},{x:760,y:700},{x:900,y:675},
+  {x:1030,y:560},{x:950,y:430},{x:790,y:410},{x:640,y:470},
+  {x:520,y:520},{x:475,y:550},{x:395,y:550},{x:330,y:550}
+];
+
+function killAlly(ally){
+  if(!ally || ally.hp<=0) return;
+
+  const corpse={
+    x:ally.x,y:ally.y,angle:ally.angle,r:ally.r,
+    classId:ally.classId,team:ally.team,owner:'ally'
+  };
+  corpses.push(corpse);
+
+  ally.hp=0;
+  ally.energy=0;
+  ally.vx=0;
+  ally.vy=0;
+
+  const i=allies.indexOf(ally);
+  if(i>=0) allies.splice(i,1);
+
+  setTimeout(()=>{
+    const ci=corpses.indexOf(corpse);
+    if(ci>=0) corpses.splice(ci,1);
+    if(!matchFrozen) spawnTestAlly();
+  },4000);
+}
+
+function killBlueTarget(target){
+  if(target===player) killPlayer();
+  else killAlly(target);
+}
+
+function updateTestAllies(dt){
+  for(const ally of [...allies]){
+    if(ally.hp<=0) continue;
+
+    ally.lastHit+=dt;
+    ally.energyPulse=Math.max(0,(ally.energyPulse||0)-dt*3.2);
+    ally.slowTimer=Math.max(0,(ally.slowTimer||0)-dt);
+    ally.zapTimer=Math.max(0,(ally.zapTimer||0)-dt);
+    ally.regenSlowTimer=Math.max(0,(ally.regenSlowTimer||0)-dt);
+    ally.fireCd=Math.max(0,(ally.fireCd||0)-dt);
+    ally.rifleBurstTimer=Math.max(0,(ally.rifleBurstTimer||0)-dt);
+    ally.blasterCd=Math.max(0,(ally.blasterCd||0)-dt);
+
+    const rechargeWait=4+(ally.zapRechargeExtra||0);
+    if(ally.lastHit>=rechargeWait && ally.zapRechargeExtra>0) ally.zapRechargeExtra=0;
+    if(ally.lastHit>=rechargeWait && ally.energy<ally.maxEnergy){
+      const regenMult=ally.regenSlowTimer>0?.35:1;
+      ally.energy=Math.min(ally.maxEnergy,ally.energy+ally.energyRegen*regenMult*dt);
+    }
+
+    const statusMult=ally.slowTimer>0?.25:1;
+    const moveSpeed=ally.maxSpeed*statusMult;
+
+    // Pick nearest visible enemy.
+    let target=null,best=Infinity;
+    for(const e of enemies){
+      if(e.hp<=0 || !isEntityVisibleToTeam(e,ally.team)) continue;
+      const d=Math.hypot(e.x-ally.x,e.y-ally.y);
+      if(d<best){ best=d; target=e; }
+    }
+
+    // Determine invasion direction by team.
+    const dir = ally.team==='blue' ? 1 : -1;
+    const ownBaseEdge = ally.team==='blue' ? 440 : 1360;
+    const centerX = world.w/2;
+
+    // How far the human player has pushed from their own base toward enemy territory.
+    const playerAdvance = ally.team==='blue'
+      ? clamp((player.x-ownBaseEdge)/(centerX-ownBaseEdge),0,2)
+      : clamp((ownBaseEdge-player.x)/(ownBaseEdge-centerX),0,2);
+
+    // Default strategic anchor:
+    // - when player is near home, gently drift toward center
+    // - once player advances, trail behind them and slightly offset to support
+    let supportX, supportY;
+
+    if(playerAdvance<.35){
+      supportX = centerX - dir*150;
+      supportY = world.h/2 + Math.sin(performance.now()*.0008)*90;
+    }else{
+      // Follow the invasion, but stay about 110 units behind the player.
+      supportX = player.x - dir*110;
+
+      // Offset vertically so ally doesn't stack directly on the player.
+      const side = Math.sin(performance.now()*.0012 + (ally.patrolIndex||0))>=0 ? 1 : -1;
+      supportY = player.y + side*75;
+
+      // Don't overrun the player too far into the enemy rear.
+      supportX = ally.team==='blue'
+        ? clamp(supportX,centerX-180,world.w-300)
+        : clamp(supportX,300,centerX+180);
+      supportY = clamp(supportY,120,world.h-120);
+    }
+
+    if(target){
+      const dx=target.x-ally.x, dy=target.y-ally.y;
+      const d=Math.hypot(dx,dy);
+      ally.angle=approachAngle(ally.angle,Math.atan2(dy,dx),2.1*statusMult*dt);
+
+      const clearShot=!lineBlocked(ally.x,ally.y,target.x,target.y);
+
+      if(clearShot && d<500){
+        const rifle=weaponStats.rifle;
+
+        if(ally.fireCd<=0 && ally.rifleBurstLeft===0){
+          ally.rifleBurstLeft=rifle.burstCount;
+          ally.rifleBurstTimer=0;
+        }
+
+        if(ally.rifleBurstLeft>0 && ally.rifleBurstTimer<=0){
+          shoot(
+            'a',
+            ally.x+Math.cos(ally.angle)*18,
+            ally.y+Math.sin(ally.angle)*18,
+            ally.angle+rand(-.04,.04),
+            rifle.speed,
+            rifle.damage,
+            {type:'physical',color:'#ffe37b'}
+          );
+          soundShot('rifle');
+          ally.rifleBurstLeft--;
+          if(ally.rifleBurstLeft>0) ally.rifleBurstTimer=rifle.burstGap;
+          else ally.fireCd=rifle.cooldown;
+        }
+
+        const blaster=weaponStats.blaster;
+        const cost=ally.maxEnergy*blaster.energyCostPct;
+        if(d<330 && ally.blasterCd<=0 && ally.energy>=cost && Math.random()<dt*.22){
+          ally.energy-=cost;
+          shoot(
+            'a',
+            ally.x+Math.cos(ally.angle)*18,
+            ally.y+Math.sin(ally.angle)*18,
+            ally.angle,
+            blaster.speed,
+            blaster.damage,
+            {
+              type:'energy',color:'#74d8ff',longBeam:true,
+              energyMult:blaster.energyMult,hpMult:blaster.hpMult,
+              regenSlowDuration:blaster.regenSlowDuration,
+              regenSlowMult:blaster.regenSlowMult,
+              bouncesLeft:blaster.bounces,life:blaster.life
+            }
+          );
+          soundShot('blaster');
+          ally.blasterCd=blaster.cooldown;
+        }
+      }else{
+        ally.rifleBurstLeft=0;
+      }
+
+      // Combat movement:
+      // bias toward the support anchor, while maintaining a safe engagement range.
+      let mx=(supportX-ally.x)*.7;
+      let my=(supportY-ally.y)*.7;
+
+      if(d>300){
+        mx+=dx*.55; my+=dy*.55;
+      }else if(d<170){
+        mx-=dx*.85; my-=dy*.85;
+      }else{
+        // Gentle lateral strafe at ideal range.
+        mx+=-dy*.18; my+=dx*.18;
+      }
+
+      const ml=Math.hypot(mx,my);
+      if(ml>10){
+        ally.vx=(mx/ml)*moveSpeed;
+        ally.vy=(my/ml)*moveSpeed;
+        moveWithWalls(ally,ally.vx*dt,ally.vy*dt);
+      }else{
+        ally.vx*=Math.max(0,1-5*dt);
+        ally.vy*=Math.max(0,1-5*dt);
+      }
+    }else{
+      ally.rifleBurstLeft=0;
+
+      // No visible enemy: gently move toward strategic support position.
+      const dx=supportX-ally.x, dy=supportY-ally.y;
+      const d=Math.hypot(dx,dy);
+
+      if(d>28){
+        ally.angle=approachAngle(ally.angle,Math.atan2(dy,dx),1.7*statusMult*dt);
+        const gentleSpeed=moveSpeed*.62;
+        ally.vx=(dx/d)*gentleSpeed;
+        ally.vy=(dy/d)*gentleSpeed;
+        moveWithWalls(ally,ally.vx*dt,ally.vy*dt);
+      }else{
+        ally.vx*=Math.max(0,1-4*dt);
+        ally.vy*=Math.max(0,1-4*dt);
+      }
+    }
+
+    ally.x=clamp(ally.x,28,world.w-28);
+    ally.y=clamp(ally.y,28,world.h-28);
+  }
+}
+
+
+function spawnEnemy(){
+  if(matchFrozen) return;
+  const classIds=['footman','heavy','assassin','medic'];
+  const classId=classIds[Math.floor(Math.random()*classIds.length)];
+  const spawn=findClearSpawn(
+    rand(world.w*.58,world.w-120),
+    rand(80,world.h-80),
+    12,
+    {x1:world.w*.55,x2:world.w-45,y1:45,y2:world.h-45}
+  );
+  const e={
+    x:spawn.x, y:spawn.y, r:12, team:'red',
+    hp:200,maxHp:200,energy:200,maxEnergy:200,lastHit:99,energyRegen:9,energyRegenDelay:4,energyDisruptTimer:0,energyPulse:0,
+    maxSpeed:36,accel:82,drag:2.5,vx:0,vy:0, angle:0,
+    fireCd:rand(.2,1.3), blasterCd:rand(.2,1.0), zapperCd:rand(.2,1.0), dodgeCd:rand(.2,.9), dirT:0, knockbackTimer:0, slowTimer:0, zapTimer:0, zapRechargeExtra:0, regenSlowTimer:0, visAlpha:0, bounty:Math.random()<.18?Math.floor(rand(25,100)):0, streak:0,
+    rifleBurstLeft:0, rifleBurstTimer:0, plasmaSmgBurstLeft:0, plasmaSmgBurstTimer:0,
+    machineCharge:0, machineBurstLeft:0, machineBurstTimer:0, cannonCharge:0, cannonChargeSounded:false, knifeAnim:0,
+    healCd:rand(.5,1.5), healCharge:0, healChargeVisual:false, healStartX:0, healStartY:0,
+    heavySpotX:null, heavySpotY:null, heavySpotTimer:0
+  };
+  applyClassStats(e,classId);
+  e.hp=e.maxHp; e.energy=e.maxEnergy;
+  enemies.push(e);
+}
+// Multiplayer: all humans and support AI are spawned by the server.
+
+function shoot(owner,x,y,ang,speed,damage,meta={}){
+  const shotType=meta.type ?? 'physical';
+  bullets.push({
+    owner,x,y,startX:x,startY:y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed,
+    r:meta.r ?? 4, damage, type:shotType, life:meta.life ?? 1.8,
+    // Physical bullets are only 60% as effective at draining defensive Energy.
+    energyMult: meta.energyMult ?? (shotType==='physical' ? 0.60 : 1.0),
+    hpMult: meta.hpMult ?? 1.0,
+    color: meta.color ?? null, longBeam: meta.longBeam ?? false, fromClass: meta.fromClass ?? '',
+    fade:meta.fade ?? false, falloffStart:meta.falloffStart ?? 0, falloffEnd:meta.falloffEnd ?? 9999,
+    minScale:meta.minScale ?? 1, rechargeLockBonus:meta.rechargeLockBonus ?? 0,
+    bouncesLeft:meta.bouncesLeft ?? 0,
+    plasma:meta.plasma ?? false, plasmaSMG:meta.plasmaSMG ?? false, zapper:meta.zapper ?? false,
+    slowDuration:meta.slowDuration ?? 0,
+    zapRechargeExtra:meta.zapRechargeExtra ?? 0,
+    regenSlowDuration:meta.regenSlowDuration ?? 0,
+    regenSlowMult:meta.regenSlowMult ?? 1,
+    cannonBall:meta.cannonBall ?? false, explodeRadius:meta.explodeRadius ?? 0,
+    explodeDamage:meta.explodeDamage ?? 0
+  });
+}
+function bulletDamageScale(b){
+  if(!b.fade) return 1;
+  const d=Math.hypot(b.x-b.startX,b.y-b.startY);
+  if(d<=b.falloffStart) return 1;
+  if(d>=b.falloffEnd) return b.minScale;
+  const t=(d-b.falloffStart)/(b.falloffEnd-b.falloffStart);
+  return 1-(1-b.minScale)*t;
+}
+function throwGrenade(owner,x,y,ang,throwerVx=0,throwerVy=0,sprinting=false){
+  // Base throw plus inherited character momentum.
+  // Sprinting adds a modest extra forward impulse.
+  const baseThrowSpeed=185;
+  const sprintBonus=sprinting ? 22 : 0;
+  grenades.push({
+    owner,x,y,
+    vx:Math.cos(ang)*(baseThrowSpeed+sprintBonus) + throwerVx,
+    vy:Math.sin(ang)*(baseThrowSpeed+sprintBonus) + throwerVy,
+    r:5,fuse:2.5,
+    playerBounceCd:0,
+    embeddedGenerator:null
+  });
+  soundGrenadeThrow();
+}
+function makeHealPulse(x,y,amount=30,kind='pulse',source=null,duration=.55){
+  heals.push({x,y,r:92,life:duration,maxLife:duration,amount,kind:'pulse',source});
+  soundHeal();
+}
+function queueHeal(target,amount=30,duration=2,source=null){
+  healJobs.push({target,source,remaining:duration,rate:amount/duration});
+}
+
+function explodeCannonBall(b){
+  const radius=b.explodeRadius||68;
+  const damage=b.explodeDamage||120;
+
+  blasts.push({x:b.x,y:b.y,r:radius,life:.34,maxLife:.34,kind:'cannon'});
+  soundCannonExplosion();
+
+  const gen=enemyGeneratorForOwner(b.owner);
+  if(gen && !gen.destroyed){
+    const gd=pointRectDistance(b.x,b.y,gen);
+    if(gd<=radius && !lineBlocked(b.x,b.y,gen.x+gen.w/2,gen.y+gen.h/2)){
+      const scale=1-clamp(gd/radius,0,1)*0.45;
+      damageGenerator(gen,damage*scale,'cannon',b.x,b.y);
+    }
+  }
+
+  if(b.owner==='p' || b.owner==='a'){
+    for(const e of [...enemies]){
+      const d=Math.hypot(e.x-b.x,e.y-b.y);
+      if(d<=radius+e.r && !lineBlocked(b.x,b.y,e.x,e.y)){
+        const scale=1-clamp(d/radius,0,1)*0.45;
+        applyDamage(e,damage*scale,{
+          energyMult:weaponStats.cannon.energyMult,
+          hpMult:weaponStats.cannon.hpMult
+        });
+        if(e.hp<=0) killEnemy(e);
+      }
+    }
+  }else{
+    for(const target of getLivingTeamMembers(player.team)){
+      const d=Math.hypot(target.x-b.x,target.y-b.y);
+      if(d<=radius+target.r && !lineBlocked(b.x,b.y,target.x,target.y)){
+        const scale=1-clamp(d/radius,0,1)*0.45;
+        applyDamage(target,damage*scale,{
+          energyMult:weaponStats.cannon.energyMult,
+          hpMult:weaponStats.cannon.hpMult,
+          toughnessMult:isHumanPlayer(target)?(1-toughness(player.bounty)):1
+        });
+        if(target.hp<=0) killBlueTarget(target);
+      }
+    }
+  }
+}
+
+function triggerRepulsor(){
+  if(!netJoined||player.deadTimer>0||player.repulsorCd>0||player.energy<75)return;
+
+  // Immediate local presentation; server decides the real result.
+  player.repulsorCd=2.8;
+  player.energy=Math.max(0,player.energy-75);
+  repulsorPulses.push({x:player.x,y:player.y,radius:155,life:.34,maxLife:.34});
+  soundRepulsor();
+  mpCommand('repulsor');
+}
+function teamBodyColor(team){ return team==='blue' ? '#4d94d8' : '#df5757'; }
+function teamDetailColor(team){ return team==='blue' ? '#d7ecff' : '#ffd2d2'; }
+
+function drawSoldier(x,y,angle,bodyColor,detailColor,r,classId='footman'){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(angle);
+
+  // soft shadow
+  ctx.fillStyle='rgba(0,0,0,.20)';
+  ctx.beginPath();
+  ctx.ellipse(0,r*.68,r*1.05,r*.45,0,0,Math.PI*2);
+  ctx.fill();
+
+  if(classId==='heavy'){
+    // Heavy: broader frame with visible armor plating and shoulder pads.
+    ctx.fillStyle=bodyColor;
+    ctx.beginPath();
+    ctx.roundRect(-r*.95,-r*.72,r*1.55,r*1.42,r*.28);
+    ctx.fill();
+
+    ctx.fillRect(-r*.55,-r*.98,r*.90,r*.30);   // top chest/neck armor
+    ctx.fillRect(-r*1.10,-r*.55,r*.34,r*.72);  // left shoulder pad
+    ctx.fillRect(r*.42,-r*.55,r*.34,r*.72);    // right shoulder pad
+
+    ctx.fillStyle=detailColor;
+    ctx.beginPath();
+    ctx.arc(r*.62,0,r*.28,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillRect(-r*.18,-r*.40,r*.48,r*.16);   // visor / faceplate highlight
+    ctx.fillRect(-r*.52,r*.00,r*.92,r*.16);    // armor stripe
+
+    ctx.fillStyle='rgba(255,255,255,.18)';
+    ctx.fillRect(-r*.45,-r*.52,r*.28,r*.18);
+    ctx.fillRect(-r*.05,-r*.52,r*.28,r*.18);
+  }else if(classId==='medic'){
+    // Medic: standard body plus a distinctive helmet.
+    ctx.fillStyle=bodyColor;
+    ctx.beginPath();
+    ctx.ellipse(-r*.06,0,r*.82,r*.60,0,0,Math.PI*2);
+    ctx.fill();
+
+    // helmet shell
+    ctx.fillStyle=detailColor;
+    ctx.beginPath();
+    ctx.arc(r*.48,0,r*.34,0,Math.PI*2);
+    ctx.fill();
+
+    // helmet rim
+    ctx.fillStyle=bodyColor;
+    ctx.fillRect(r*.22,-r*.10,r*.48,r*.20);
+
+    // small medic cap/stripe
+    ctx.fillStyle='rgba(255,255,255,.82)';
+    ctx.fillRect(r*.34,-r*.26,r*.18,r*.10);
+
+    // backpack / support gear
+    ctx.fillStyle='rgba(255,255,255,.12)';
+    ctx.fillRect(-r*.72,-r*.32,r*.24,r*.64);
+  }else if(classId==='assassin'){
+    // Assassin: narrower, sleek body and pointed head profile.
+    ctx.fillStyle=bodyColor;
+    ctx.beginPath();
+    ctx.ellipse(-r*.02,0,r*.70,r*.46,0,0,Math.PI*2);
+    ctx.fill();
+
+    // sleek head / visor
+    ctx.fillStyle=detailColor;
+    ctx.beginPath();
+    ctx.ellipse(r*.52,0,r*.24,r*.20,0,0,Math.PI*2);
+    ctx.fill();
+
+    // pointed front silhouette
+    ctx.fillStyle=bodyColor;
+    ctx.beginPath();
+    ctx.moveTo(r*.52,-r*.16);
+    ctx.lineTo(r*.84,0);
+    ctx.lineTo(r*.52,r*.16);
+    ctx.closePath();
+    ctx.fill();
+
+    // back fin / cloak line
+    ctx.fillStyle='rgba(255,255,255,.14)';
+    ctx.beginPath();
+    ctx.moveTo(-r*.74,0);
+    ctx.lineTo(-r*.36,-r*.18);
+    ctx.lineTo(-r*.32,r*.18);
+    ctx.closePath();
+    ctx.fill();
+  }else{
+    // Footman/default: clean standard soldier silhouette.
+    ctx.fillStyle=bodyColor;
+    ctx.beginPath();
+    ctx.ellipse(0,0,r*.85,r*.65,0,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle=detailColor;
+    ctx.beginPath();
+    ctx.arc(r*.55,0,r*.28,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  // universal weapon/forward indicator
+  ctx.fillStyle=detailColor;
+  ctx.fillRect(r*.45,-2,r*.9,4);
+
+  ctx.restore();
+}
+
+function drawCorpseModel(c){
+  if(!c) return;
+
+  const body='#62676d';
+  const detail='#91979d';
+
+  ctx.save();
+
+  // Flatten the character so it clearly reads as a body on the floor.
+  ctx.translate(c.x,c.y);
+  ctx.rotate(c.angle);
+  ctx.scale(1.12,.72);
+  ctx.translate(-c.x,-c.y);
+
+  // Universal dead-player treatment: use native gray colors directly.
+  // Avoid Canvas filters here—they are expensive on mobile and caused
+  // noticeable frame drops during the respawn state.
+  ctx.globalAlpha=.42;
+  drawSoldier(c.x,c.y,c.angle,body,detail,c.r);
+
+  ctx.globalAlpha=.18;
+  ctx.fillStyle='black';
+  ctx.beginPath();
+  ctx.ellipse(c.x,c.y+7,c.r*1.4,c.r*.58,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawAllCorpses(){
+  for(const c of corpses) drawCorpseModel(c);
+}
+
+
+function killEnemy(e){
+  if(netJoined){
+    // Server owns deaths/spawns. Keep only the immediate visual prediction.
+    e.hp=Math.max(0,e.hp);
+    return;
+  }
+  const base=10, payout=Math.round(base*multiplier(player.bounty)+e.bounty);
+  cash+=payout; kills++; player.streak++; player.bounty += 5 + Math.floor(player.streak/5);
+
+  const corpse={
+    x:e.x,
+    y:e.y,
+    angle:e.angle,
+    r:e.r,
+    classId:e.classId,
+    team:e.team,
+    owner:'enemy'
+  };
+  corpses.push(corpse);
+
+  const i=enemies.indexOf(e);
+  if(i>=0) enemies.splice(i,1);
+
+  setTimeout(()=>{
+    const ci=corpses.indexOf(corpse);
+    if(ci>=0) corpses.splice(ci,1);
+    spawnEnemy();
+  },350);
+}
+function killPlayer(){
+  deaths++;
+
+  // Leave a faded body at the exact death position until respawn.
+  player.corpse={
+    x:player.x,
+    y:player.y,
+    angle:player.angle,
+    r:player.r,
+    classId:player.classId,
+    team:player.team,
+    owner:'player'
+  };
+  corpses.push(player.corpse);
+
+  player.deadTimer=4.0;
+  player.hp=0;
+  player.streak=0;
+  player.bounty=0;
+  player.vx=0;
+  player.vy=0;
+  player.pendingClassId=player.classId;
+  renderRespawnClassPicker();
+}
+function respawn(){
+  const spawn=findClearSpawn(285,world.h/2,player.r,{x1:90,x2:420,y1:400,y2:700});
+
+  // Apply the class chosen during the respawn countdown.
+  applyClassStats(player,player.pendingClassId || player.classId);
+  player.classId=player.pendingClassId || player.classId;
+
+  player.x=spawn.x;
+  player.y=spawn.y;
+  player.hp=player.maxHp;
+  player.energy=player.maxEnergy;
+  player.lastHit=99;
+  player.energyRegenDelay=4;
+  player.energyDisruptTimer=0;
+  player.energyPulse=0;
+  player.vx=0;
+  player.vy=0;
+  player.deadTimer=0;
+  if(player.corpse){
+    const ci=corpses.indexOf(player.corpse);
+    if(ci>=0) corpses.splice(ci,1);
+  }
+  player.corpse=null;
+  player.healCharge=0;
+  player.healChargeVisual=false;
+
+  // Clear class-specific weapon timers when changing class.
+  player.fireCd=0;
+  player.rifleBurstLeft=0;
+  player.rifleBurstTimer=0;
+  player.plasmaSmgBurstLeft=0;
+  player.plasmaSmgBurstTimer=0;
+  player.blasterCd=0;
+  player.shotgunCd=0;
+  player.medicPistolCd=0;
+  player.healCd=0;
+  player.machineCharge=0;
+  player.machineBurstLeft=0;
+  player.machineBurstTimer=0;
+  player.machineCd=0;
+  player.cannonCharge=0;
+  player.cannonCharging=false;
+  player.cannonClickLatch=false;
+  player.cannonCd=0;
+  player.knifeCd=0;
+  player.knifeAnim=0;
+  player.utilityCd=0;
+  player.grenadeCd=0;
+  player.slowTimer=0;
+  player.zapTimer=0;
+  player.zapRechargeExtra=0;
+  player.regenSlowTimer=0;
+
+  renderLoadout();
+  renderRespawnClassPicker();
+}
+
+function applyDamage(target,dmg,opts={}){
+  const energyPct=clamp(target.energy/target.maxEnergy,0,1);
+  const blockedBase=dmg*energyPct;
+  const blockedDrain=blockedBase*(opts.energyMult ?? 1);
+  const hpDamage=(dmg-blockedBase)*(opts.hpMult ?? 1);
+  if(blockedDrain>0){
+    target.energy=Math.max(0,target.energy-blockedDrain);
+    target.energyPulse=1.0;
+    soundEnergyAbsorb();
+  } else if(hpDamage>0){ soundHpHit(); }
+  if(hpDamage>0) target.hp-=hpDamage*(opts.toughnessMult ?? 1);
+  target.lastHit=0;
+
+  // Every hit restarts the normal 4s recharge delay.
+  target.energyRegenDelay=4;
+
+  // Legacy disruption timer is no longer used by the Energy Blaster.
+  target.energyDisruptTimer=Math.max(0,target.energyDisruptTimer||0);
+
+  // Zapper: 75% movement/rotation slow for 3s and +3s recharge wait.
+  const slowDuration=opts.slowDuration ?? 0;
+  if(slowDuration>0){
+    target.slowTimer=Math.max(target.slowTimer||0,slowDuration);
+    if(opts.zapRechargeExtra>0) target.zapTimer=Math.max(target.zapTimer||0,slowDuration);
+  }
+  const zapExtra=opts.zapRechargeExtra ?? 0;
+  if(zapExtra>0) target.zapRechargeExtra=Math.max(target.zapRechargeExtra||0,zapExtra);
+
+  // Energy Blaster: recharge rate is only 35% of normal for 3s.
+  const regenSlowDuration=opts.regenSlowDuration ?? 0;
+  if(regenSlowDuration>0){
+    target.regenSlowTimer=Math.max(target.regenSlowTimer||0,regenSlowDuration);
+  }
+}
+
+function switchPlayerTeam(){ mpCommand('switchTeam'); }
+
+function updateSwitchTeamButton(){
+  const btn=document.getElementById('switchTeamBtn');
+  if(btn) btn.innerHTML=`SWITCH TO ${player.team==='blue'?'RED':'BLUE'}<br>P`;
+}
+
+function triggerDebugRadar(){
+  if(!netJoined||player.deadTimer>0||matchFrozen)return;
+
+  radarRevealTimer=2;
+  radarPulses.push({
+    x:player.x,y:player.y,life:.9,maxLife:.9,
+    maxRadius:Math.hypot(world.w,world.h)
+  });
+  tone(720,.09,'sine',.025,260);
+  setTimeout(()=>tone(420,.12,'sine',.016,-120),55);
+  mpCommand('radar');
+}
+
+
+const mpCreateBtn=document.getElementById('mpCreateBtn');
+const mpJoinBtn=document.getElementById('mpJoinBtn');
+const mpRoomInput=document.getElementById('mpRoomInput');
+
+mpCreateBtn?.addEventListener('click',()=>{
+  if(!netConnected){mpSetStatus('Still connecting…',true);return;}
+  mpSend({type:'create_room'});
+});
+
+mpJoinBtn?.addEventListener('click',()=>{
+  if(!netConnected){mpSetStatus('Still connecting…',true);return;}
+  const roomCode=(mpRoomInput?.value||'').trim().toUpperCase();
+  if(!roomCode){mpSetStatus('Enter a room code.',true);return;}
+  mpSend({type:'join_room',roomCode});
+});
+
+mpRoomInput?.addEventListener('keydown',e=>{
+  if(e.key==='Enter')mpJoinBtn?.click();
+});
+
+mpConnect();
+
+c.addEventListener('pointerdown',ensureAudio,{once:true}); addEventListener('keydown',ensureAudio,{once:true});
+addEventListener('keydown',e=>{
+  const key=e.key.toLowerCase();
+  keys[key]=true;
+  if(key==='q' && !e.repeat) toggleSecondaryWeapon();
+  if(key==='r' && !e.repeat) triggerRepulsor();
+  if(key==='t' && !e.repeat) triggerDebugRadar();
+  if(key==='p' && !e.repeat) switchPlayerTeam();
+});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+c.addEventListener('mousemove',e=>{mouse.x=e.clientX; mouse.y=e.clientY;});
+c.addEventListener('contextmenu',e=>e.preventDefault());
+c.addEventListener('mousedown',e=>{ if(e.button===0) mouse.left=true; if(e.button===1) mouse.middle=true; if(e.button===2) mouse.right=true; });
+addEventListener('mouseup',e=>{ if(e.button===0) mouse.left=false; if(e.button===1) mouse.middle=false; if(e.button===2) mouse.right=false; });
+
+function makeStick(id){
+  const el=document.getElementById(id), nub=el.querySelector('.nub'); let active=false,pid=null,vec={x:0,y:0};
+  function update(t){
+    const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+    let dx=t.clientX-cx, dy=t.clientY-cy, m=Math.hypot(dx,dy), max=44;
+    if(m>max){dx*=max/m; dy*=max/m;} vec.x=dx/max; vec.y=dy/max;
+    nub.style.transform=`translate(${dx}px,${dy}px)`;
+  }
+  el.addEventListener('pointerdown',e=>{active=true; pid=e.pointerId; el.setPointerCapture(pid); update(e);});
+  el.addEventListener('pointermove',e=>{if(active&&e.pointerId===pid) update(e);});
+  function end(e){ if(e.pointerId!==pid) return; active=false; vec.x=vec.y=0; nub.style.transform='translate(0,0)';}
+  el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+  return {vec,get active(){return active}};
+}
+const moveStick=makeStick('moveStick'), aimStick=makeStick('aimStick');
+
+const repulsorBtn=document.getElementById('repulsorBtn');
+repulsorBtn.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  ensureAudio();
+  triggerRepulsor();
+});
+
+const switchTeamBtn=document.getElementById('switchTeamBtn');
+switchTeamBtn.addEventListener('click',e=>{
+  e.preventDefault();
+  switchPlayerTeam();
+});
+updateSwitchTeamButton();
+
+function firePlayerSlot1(dt){
+  const cls=classes[player.classId];
+  if(cls.weapon1.kind==='rifle'){
+    const w=weaponStats.rifle;
+    player.fireCd=Math.max(0,player.fireCd-dt); player.rifleBurstTimer-=dt;
+    const wants=mouse.left || (aimStick.active && Math.hypot(aimStick.vec.x,aimStick.vec.y)>.45);
+    if(wants && player.fireCd<=0 && player.rifleBurstLeft===0){
+      player.rifleBurstLeft=w.burstCount;
+      player.rifleBurstTimer=0;
+    }
+    if(player.rifleBurstLeft>0 && player.rifleBurstTimer<=0){
+      shoot('p',player.x+Math.cos(player.angle)*20,player.y+Math.sin(player.angle)*20,player.angle,w.speed,w.damage,{type:'physical', color:'#ffe37b', fromClass:'footman'});
+      soundShot('rifle');
+      player.rifleBurstLeft--;
+      if(player.rifleBurstLeft>0) player.rifleBurstTimer=w.burstGap;
+      else player.fireCd=w.cooldown;
+    }
+  }else if(cls.weapon1.kind==='machinegun'){
+    const w=weaponStats.machinegun;
+    player.machineCd=Math.max(0,player.machineCd-dt);
+    const wants=mouse.left;
+    const nearlyStill=Math.hypot(player.vx,player.vy)<8;
+    if(wants && player.machineCd<=0 && player.machineCharge<w.spinUp && nearlyStill) player.machineCharge += dt;
+    else if(!wants || !nearlyStill) player.machineCharge = Math.max(0, player.machineCharge-dt*1.8);
+    if(player.machineCharge>=w.spinUp && wants && player.machineBurstTimer<=0){
+      shoot('p',player.x+Math.cos(player.angle)*20,player.y+Math.sin(player.angle)*20,player.angle+rand(-w.spread,w.spread),w.speed,w.damage,{type:'physical', color:'#ffe37b'});
+      soundShot('machinegun'); player.machineBurstTimer=w.fireInterval;
+    }
+    player.machineBurstTimer=Math.max(0,player.machineBurstTimer-dt);
+  }else if(cls.weapon1.kind==='plasmaPistol'){
+    const w=weaponStats.plasmaPistol;
+    player.fireCd=Math.max(0,player.fireCd-dt);
+    if(mouse.left && player.fireCd<=0 && player.energy>=w.energyCost){
+      player.energy-=w.energyCost;
+      shoot('p',player.x+Math.cos(player.angle)*20,player.y+Math.sin(player.angle)*20,player.angle,w.speed,w.damage,{
+        type:'energy',color:'#6dff7e',energyMult:w.energyMult,hpMult:w.hpMult,r:w.radius,longBeam:false,plasma:true
+      });
+      soundShot('plasma');
+      player.fireCd=w.cooldown;
+    }
+  }else if(cls.weapon1.kind==='plasmaSMG'){
+    const w=weaponStats.plasmaSMG;
+    player.fireCd=Math.max(0,player.fireCd-dt);
+    player.plasmaSmgBurstTimer=Math.max(0,(player.plasmaSmgBurstTimer||0)-dt);
+
+    if(mouse.left && player.fireCd<=0 && player.plasmaSmgBurstLeft===0 && player.energy>=w.energyCost){
+      player.plasmaSmgBurstLeft=w.burstCount;
+      player.plasmaSmgBurstTimer=0;
+    }
+
+    if(player.plasmaSmgBurstLeft>0 && player.plasmaSmgBurstTimer<=0){
+      if(player.energy>=w.energyCost){
+        player.energy-=w.energyCost;
+        shoot(
+          'p',
+          player.x+Math.cos(player.angle)*19,
+          player.y+Math.sin(player.angle)*19,
+          player.angle+rand(-w.spread,w.spread),
+          w.speed,
+          w.damage,
+          {
+            type:'energy',color:'#54ff78',energyMult:w.energyMult,hpMult:w.hpMult,
+            r:w.radius,life:w.life,longBeam:false,plasma:true,plasmaSMG:true
+          }
+        );
+        soundShot('plasmaSMG');
+        player.plasmaSmgBurstLeft--;
+        if(player.plasmaSmgBurstLeft>0){
+          player.plasmaSmgBurstTimer=w.burstGap;
+        }else{
+          player.fireCd=w.burstCooldown;
+        }
+      }else{
+        player.plasmaSmgBurstLeft=0;
+        player.fireCd=w.burstCooldown;
+      }
+    }
+  }else if(cls.weapon1.kind==='medicGun'){
+    const w=weaponStats.medicGun;
+    player.fireCd=Math.max(0,player.fireCd-dt); player.rifleBurstTimer-=dt;
+    if(mouse.left && player.fireCd<=0 && player.rifleBurstLeft===0){
+      player.rifleBurstLeft=w.burstCount;
+      player.rifleBurstTimer=0;
+      player.fireCd=w.cooldown;
+    }
+    if(player.rifleBurstLeft>0 && player.rifleBurstTimer<=0){
+      shoot('p',player.x+Math.cos(player.angle)*20,player.y+Math.sin(player.angle)*20,player.angle,w.speed,w.damage,{type:'physical', color:'#ffe37b'});
+      soundShot('carbine');
+      player.rifleBurstLeft--;
+      player.rifleBurstTimer=w.burstGap;
+    }
+  }
+}
+function firePlayerSlot2(dt){
+  const cls=classes[player.classId];
+  player.blasterCd=Math.max(0,player.blasterCd-dt);
+  player.shotgunCd=Math.max(0,player.shotgunCd-dt);
+  player.cannonCd=Math.max(0,player.cannonCd-dt);
+  player.utilityCd=Math.max(0,player.utilityCd-dt);
+
+  if(cls.weapon2.kind==='blaster'){
+    if(player.footmanSecondary==='shotgun'){
+      if(mouse.right && player.shotgunCd<=0){
+        const pellets=9;
+        for(let i=0;i<pellets;i++){
+          const spread=(i-(pellets-1)/2)*0.028 + rand(-.008,.008);
+          shoot('p',player.x+Math.cos(player.angle)*20,player.y+Math.sin(player.angle)*20,player.angle+spread,176,18,{
+            type:'physical',color:'#ffd98a',r:3,life:.62,fade:true,falloffStart:22,falloffEnd:116,minScale:.04
+          });
+        }
+        soundShot('shotgun');
+        player.shotgunCd=.90;
+      }
+    }else{
+      const w=weaponStats.blaster;
+      const cost=player.maxEnergy*w.energyCostPct;
+      if(mouse.right && player.blasterCd<=0 && player.energy>=cost){
+        player.energy-=cost;
+        shoot('p',player.x+Math.cos(player.angle)*22,player.y+Math.sin(player.angle)*22,player.angle,w.speed,w.damage,{
+          type:'energy',color:'#74d8ff',longBeam:true,energyMult:w.energyMult,hpMult:w.hpMult,
+          regenSlowDuration:w.regenSlowDuration,regenSlowMult:w.regenSlowMult,bouncesLeft:w.bounces,life:w.life
+        });
+        soundShot('blaster'); player.blasterCd=w.cooldown;
+      }
+    }
+  }else if(cls.weapon2.kind==='cannon'){
+    const w=weaponStats.cannon;
+    const cost=player.maxEnergy*w.energyCostPct;
+
+    // One right-click starts the charge. Holding is not required.
+    if(mouse.right && !player.cannonClickLatch){
+      player.cannonClickLatch=true;
+      if(!player.cannonCharging && player.cannonCd<=0 && player.energy>=cost){
+        player.cannonCharging=true;
+        player.cannonCharge=0;
+        player.cannonStartX=player.x;
+        player.cannonStartY=player.y;
+        soundCannonCharge();
+      }
+    }
+    if(!mouse.right) player.cannonClickLatch=false;
+
+    if(player.cannonCharging){
+      const moved=Math.hypot(player.x-player.cannonStartX,player.y-player.cannonStartY)>1.5;
+
+      // Moving before the shot completes cancels the charge with no Energy cost.
+      if(moved || player.cannonCd>0 || player.energy<cost){
+        player.cannonCharging=false;
+        player.cannonCharge=0;
+      }else{
+        player.cannonCharge+=dt;
+
+        if(player.cannonCharge>=w.chargeTime){
+          player.energy-=cost;
+          player.cannonCharging=false;
+          player.cannonCharge=0;
+          player.cannonCd=w.cooldown;
+          shoot(
+            'p',
+            player.x+Math.cos(player.angle)*24,
+            player.y+Math.sin(player.angle)*24,
+            player.angle,
+            w.speed,
+            0,
+            {
+              type:'energy',
+              color:'#ff4c4c',
+              r:w.radius,
+              life:w.life,
+              bouncesLeft:w.bounces,
+              cannonBall:true,
+              explodeRadius:w.explosionRadius,
+              explodeDamage:w.explosionDamage
+            }
+          );
+          soundCannonLaunch();
+        }
+      }
+    }
+  }else if(cls.weapon2.kind==='knife'){
+    if(player.classId==='assassin' && player.assassinSecondary==='physicalPistol'){
+      const w=weaponStats.physicalPistol;
+      if(mouse.right && player.utilityCd<=0){
+        shoot(
+          'p',
+          player.x+Math.cos(player.angle)*19,
+          player.y+Math.sin(player.angle)*19,
+          player.angle,
+          w.speed,
+          w.damage,
+          {type:'physical',color:'#ffd98a',r:w.radius,life:w.life}
+        );
+        soundShot('physicalPistol');
+        player.utilityCd=w.cooldown;
+      }
+    }else{
+      const w=weaponStats.knife;
+      if(mouse.right && player.utilityCd<=0){
+        player.utilityCd=w.cooldown;
+        player.knifeAnim=.24;
+        soundShot('knife');
+        for(const e of enemies){
+          const d=Math.hypot(e.x-player.x,e.y-player.y);
+          if(d<w.range){
+            applyDamage(e,w.damage,{energyMult:w.energyMult,hpMult:w.hpMult});
+            if(e.hp<=0) killEnemy(e);
+          }
+        }
+
+        const gen=generators.find(g=>g.team!=='blue');
+        if(gen && !gen.destroyed && pointRectDistance(player.x,player.y,gen)<=w.range){
+          damageGenerator(gen,w.damage,'knife',player.x,player.y);
+        }
+      }
+    }
+  }else if(cls.weapon2.kind==='plasmaPistol'){
+    const w=weaponStats.plasmaPistol;
+    player.medicPistolCd=Math.max(0,(player.medicPistolCd||0)-dt);
+
+    if(mouse.right && player.medicPistolCd<=0 && player.energy>=w.energyCost){
+      player.energy-=w.energyCost;
+      shoot(
+        'p',
+        player.x+Math.cos(player.angle)*20,
+        player.y+Math.sin(player.angle)*20,
+        player.angle,
+        w.speed,
+        w.damage,
+        {
+          type:'energy',color:'#6dff7e',energyMult:w.energyMult,hpMult:w.hpMult,
+          r:w.radius,longBeam:false,plasma:true
+        }
+      );
+      soundShot('plasma');
+      player.medicPistolCd=w.cooldown;
+    }
+  }
+}
+
+function returnAllPlayersToBases(){
+  // Human player: revive if necessary, then place safely inside blue base.
+  if(player.deadTimer>0){
+    if(player.corpse){
+      const ci=corpses.indexOf(player.corpse);
+      if(ci>=0) corpses.splice(ci,1);
+      player.corpse=null;
+    }
+    applyClassStats(player,player.pendingClassId || player.classId);
+    player.classId=player.pendingClassId || player.classId;
+    player.deadTimer=0;
+    player.hp=player.maxHp;
+    player.energy=player.maxEnergy;
+  }
+
+  const pSpawn=findClearSpawn(
+    330,550,player.r,
+    {x1:250,x2:405,y1:495,y2:605}
+  );
+  player.x=pSpawn.x;
+  player.y=pSpawn.y;
+  player.vx=0;
+  player.vy=0;
+  player.sprinting=false;
+
+  // Ensure the single test ally exists, then place it in blue base.
+  if(allies.length===0) spawnTestAlly();
+  allies.forEach((ally,i)=>{
+    const aSpawn=findClearSpawn(
+      330,510+i*55,ally.r,
+      {x1:250,x2:405,y1:470,y2:630}
+    );
+    ally.x=aSpawn.x;
+    ally.y=aSpawn.y;
+    ally.vx=0;
+    ally.vy=0;
+    ally.hp=ally.maxHp;
+    ally.energy=ally.maxEnergy;
+  });
+
+  // Ensure the red side has its normal three players, then return them home.
+  while(enemies.length<3) spawnEnemy();
+  enemies.forEach((e,i)=>{
+    const y=500+(i%3)*50;
+    const eSpawn=findClearSpawn(
+      1470,y,e.r,
+      {x1:1395,x2:1710,y1:470,y2:630}
+    );
+    e.x=eSpawn.x;
+    e.y=eSpawn.y;
+    e.vx=0;
+    e.vy=0;
+    e.hp=e.maxHp;
+    e.energy=e.maxEnergy;
+    e.rifleBurstLeft=0;
+    e.plasmaSmgBurstLeft=0;
+    e.machineCharge=0;
+    e.cannonCharge=0;
+  });
+
+  // End lingering combat effects so nothing keeps moving after the return.
+  bullets.length=0;
+  grenades.length=0;
+  healJobs.length=0;
+  heals.length=0;
+  repulsorPulses.length=0;
+  radarPulses.length=0;
+  radarRevealTimer=0;
+
+  cam.x=clamp(player.x-W/2,0,Math.max(0,world.w-W));
+  cam.y=clamp(player.y-H/2,0,Math.max(0,world.h-H));
+
+  matchFrozen=true;
+  postVictoryTimer=0;
+}
+
+function firePlayerSlot3(dt){
+  const cls=classes[player.classId];
+  player.grenadeCd=Math.max(0,player.grenadeCd-dt);
+  if(cls.weapon3.kind==='grenade'){
+    if(mouse.middle && player.grenadeCd<=0){
+      throwGrenade(
+        'p',
+        player.x+Math.cos(player.angle)*18,
+        player.y+Math.sin(player.angle)*18,
+        player.angle,
+        player.vx,
+        player.vy,
+        !!player.sprinting
+      );
+      player.grenadeCd=1.65;
+    }
+  }else if(cls.weapon3.kind==='zapper'){
+    const w=weaponStats.zapper;
+    if(mouse.middle && player.grenadeCd<=0 && player.energy>=w.energyCost){
+      player.energy-=w.energyCost;
+      shoot('p',player.x+Math.cos(player.angle)*20,player.y+Math.sin(player.angle)*20,player.angle,w.speed,w.damage,{
+        type:'energy',color:'#a7f4ff',energyMult:w.energyMult,hpMult:w.hpMult,r:w.radius,life:w.life,
+        zapper:true,slowDuration:w.slowDuration,zapRechargeExtra:w.zapRechargeExtra
+      });
+      soundShot('zapper');
+      player.grenadeCd=w.cooldown;
+    }
+  }else if(cls.weapon3.kind==='heal'){
+    const healCost=player.maxEnergy*0.10;
+    player.healCd=Math.max(0,(player.healCd||0)-dt);
+
+    const movingNow=Math.hypot(player.vx,player.vy)>2.5 || !!player.sprinting;
+
+    if(mouse.middle && player.healCd<=0 && player.energy>=healCost && !movingNow){
+      if(player.healCharge===0){
+        player.healStartX=player.x;
+        player.healStartY=player.y;
+      }
+
+      const movedDuringCharge=Math.hypot(player.x-player.healStartX,player.y-player.healStartY)>1.5;
+      if(movedDuringCharge){
+        player.healCharge=0;
+      }else{
+        player.healCharge+=dt;
+
+        if(player.healCharge>=2.0){
+          player.energy-=healCost;
+          player.healCd=4.0;
+          player.healCharge=0;
+
+          makeHealPulse(player.x,player.y,30,'pulse',player,2);
+          queueHeal(player,30,2,player);
+
+          // Heal allied test players too; through-wall healing stays at 50%.
+          for(const ally of allies){
+            if(ally.hp>0 && Math.hypot(ally.x-player.x,ally.y-player.y)<100){
+              const blocked=lineBlocked(player.x,player.y,ally.x,ally.y);
+              queueHeal(ally,blocked?15:30,2,player);
+            }
+          }
+
+          for(const e of enemies){
+            if(e.team===player.team && Math.hypot(e.x-player.x,e.y-player.y)<100){
+              const blocked=lineBlocked(player.x,player.y,e.x,e.y);
+              queueHeal(e,blocked?15:30,2,player);
+            }
+          }
+        }
+      }
+    }else{
+      // Heal cannot be held/charged while running or after releasing MMB.
+      player.healCharge=0;
+    }
+  }
+}
+
+function update(dt){
+  if(!netJoined)return;
+
+  // Smooth remote players and gently reconcile our predicted player to server truth.
+  const remoteFollow=Math.min(1,dt*13);
+  for(const ent of [...allies,...enemies]){
+    if(ent._tx!==undefined){
+      ent.x+=(ent._tx-ent.x)*remoteFollow;
+      ent.y+=(ent._ty-ent.y)*remoteFollow;
+      ent.angle=approachAngle(ent.angle,ent._ta??ent.angle,9*dt);
+    }
+  }
+
+  if(player._tx!==undefined){
+    const errX=player._tx-player.x,errY=player._ty-player.y;
+    const err=Math.hypot(errX,errY);
+    if(err>90){
+      player.x=player._tx;player.y=player._ty;
+      player.vx=player.vy=0;
+    }else{
+      // Low-strength correction preserves responsiveness while preventing drift.
+      const correction=Math.min(1,dt*3.2);
+      player.x+=errX*correction;
+      player.y+=errY*correction;
+    }
+  }
+
+  // Advance authoritative projectiles visually between 30 Hz snapshots.
+  for(const b of bullets){
+    b.x+=b.vx*dt;
+    b.y+=b.vy*dt;
+    b.life=Math.max(0,(b.life||0)-dt);
+  }
+  for(const g of grenades){
+    if(!g.embeddedGeneratorId){
+      g.x+=g.vx*dt;
+      g.y+=g.vy*dt;
+    }
+    g.fuse=Math.max(0,(g.fuse||0)-dt);
+  }
+  for(const fx of blasts) fx.life=Math.max(0,(fx.life||0)-dt);
+  for(const fx of heals) fx.life=Math.max(0,(fx.life||0)-dt);
+  for(const fx of repulsorPulses) fx.life=Math.max(0,(fx.life||0)-dt);
+  for(const fx of radarPulses) fx.life=Math.max(0,(fx.life||0)-dt);
+
+  const playerAlive=player.deadTimer<=0&&player.alive!==false;
+
+  if(roundStarted&&playerAlive&&!matchFrozen){
+    let strafe=(keys['d']?1:0)-(keys['a']?1:0);
+    let forward=(keys['w']?1:0)-(keys['s']?1:0);
+
+    if(moveStick.active){
+      strafe=moveStick.vec.x;
+      forward=-moveStick.vec.y;
+    }
+
+    const aimMag=Math.hypot(aimStick.vec.x,aimStick.vec.y);
+    const targetAngle=(aimStick.active&&aimMag>.25)
+      ? Math.atan2(aimStick.vec.y,aimStick.vec.x)
+      : Math.atan2(mouse.y-(player.y-cam.y),mouse.x-(player.x-cam.x));
+
+    // Original v100 local turning/momentum path.
+    const statusMult=player.slowTimer>0?.25:1;
+    player.angle=approachAngle(player.angle,targetAngle,2.1*statusMult*dt);
+
+    const inputMag=Math.hypot(strafe,forward);
+    const sprintRequested=(keys['shift']||keys['shiftleft']||keys['shiftright'])
+      && inputMag>.05 && player.energy>0;
+    player.sprinting=!!sprintRequested;
+
+    if(inputMag>.05){
+      strafe/=inputMag;
+      forward/=inputMag;
+
+      const fx=Math.cos(player.angle),fy=Math.sin(player.angle),rx=-fy,ry=fx;
+      const ax=fx*forward+rx*strafe,ay=fy*forward+ry*strafe;
+      player.vx+=ax*player.accel*(player.sprinting?1.35:1)*statusMult*dt;
+      player.vy+=ay*player.accel*(player.sprinting?1.35:1)*statusMult*dt;
+    }else{
+      const decay=Math.max(0,1-player.drag*dt);
+      player.vx*=decay;player.vy*=decay;
+    }
+
+    if(player.sprinting){
+      player.energy=Math.max(0,player.energy-player.maxEnergy*.08*dt);
+      if(player.energy<=0)player.sprinting=false;
+    }
+
+    const maxSpeed=player.maxSpeed*(player.sprinting?1.6:1)*statusMult;
+    const sp=Math.hypot(player.vx,player.vy);
+    if(sp>maxSpeed){
+      player.vx=player.vx/sp*maxSpeed;
+      player.vy=player.vy/sp*maxSpeed;
+    }
+
+    moveWithWalls(player,player.vx*dt,player.vy*dt);
+    player.x=clamp(player.x,28,world.w-28);
+    player.y=clamp(player.y,28,world.h-28);
+
+    // Preserve v100 local animations, cooldown feel, charging, and sounds.
+    player.knifeAnim=Math.max(0,(player.knifeAnim||0)-dt);
+    player.energyPulse=Math.max(0,(player.energyPulse||0)-dt*3.2);
+    firePlayerSlot1(dt);
+    firePlayerSlot2(dt);
+    firePlayerSlot3(dt);
+
+    // Send current input to the authoritative server at 30 Hz.
+    netSendTimer-=dt;
+    if(netSendTimer<=0){
+      netSendTimer=1/30;
+      mpSend({
+        type:'input',
+        strafe,forward,aim:targetAngle,
+        lmb:!!(mouse.left||(aimStick.active&&aimMag>.45)),
+        rmb:!!mouse.right,
+        mmb:!!mouse.middle,
+        sprint:!!player.sprinting
+      });
+    }
+  }else{
+    player.sprinting=false;
+    player.vx*=Math.max(0,1-5*dt);
+    player.vy*=Math.max(0,1-5*dt);
+  }
+
+  radarRevealTimer=Math.max(0,(radarRevealTimer||0)-dt);
+
+  cam.x=clamp(player.x-W/2,0,Math.max(0,world.w-W));
+  cam.y=clamp(player.y-H/2,0,Math.max(0,world.h-H));
+
+  updateLoadoutCooldownVisuals();
+}
+
+function drawKnifeSlash(ent){
+  const remaining=ent.knifeAnim||0;
+  if(remaining<=0) return;
+
+  const duration=.24;
+  const p=1-clamp(remaining/duration,0,1);
+
+  // Stab motion: extend straight outward, then retract.
+  const thrust=Math.sin(Math.PI*p);
+  const base=ent.r*.55;
+  const reach=ent.r+13; // visually matches the reduced melee range
+  const tip=base+(reach-base)*thrust;
+  const fade=1-Math.max(0,(p-.84)/.16);
+
+  ctx.save();
+  ctx.translate(ent.x,ent.y);
+  ctx.rotate(ent.angle);
+  ctx.lineCap='round';
+
+  // Arm/forearm points directly forward.
+  ctx.strokeStyle=`rgba(220,228,238,${0.75*fade})`;
+  ctx.lineWidth=2.4;
+  ctx.beginPath();
+  ctx.moveTo(ent.r*.25,0);
+  ctx.lineTo(Math.max(ent.r*.65,tip-7),0);
+  ctx.stroke();
+
+  // Knife blade points outward from the character.
+  ctx.strokeStyle=`rgba(255,255,255,${fade})`;
+  ctx.lineWidth=3.2;
+  ctx.beginPath();
+  ctx.moveTo(Math.max(ent.r*.65,tip-7),0);
+  ctx.lineTo(tip+5,0);
+  ctx.stroke();
+
+  // Bright pointed tip.
+  ctx.fillStyle=`rgba(245,250,255,${fade})`;
+  ctx.beginPath();
+  ctx.moveTo(tip+8,0);
+  ctx.lineTo(tip+2,-2.5);
+  ctx.lineTo(tip+2,2.5);
+  ctx.closePath();
+  ctx.fill();
+
+  // Short motion streak directly behind the stab.
+  ctx.strokeStyle=`rgba(190,220,255,${0.28*fade*thrust})`;
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(ent.r,0);
+  ctx.lineTo(tip-5,0);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawDisruptionZaps(ent){
+  const remaining=ent.zapTimer||0;
+  if(remaining<=0) return;
+  const intensity=clamp(remaining/3,0.25,1);
+
+  ctx.save();
+  ctx.translate(ent.x,ent.y);
+  ctx.strokeStyle=`rgba(150,225,255,${0.28+0.38*intensity})`;
+  ctx.lineWidth=1.25;
+  ctx.lineCap='round';
+
+  const t=performance.now()*0.018;
+  for(let i=0;i<3;i++){
+    const a=t+i*2.15;
+    const r1=ent.r+5+((i*3)%5);
+    const r2=r1+5;
+    const x1=Math.cos(a)*r1, y1=Math.sin(a)*r1;
+    const x2=Math.cos(a+.20)*r2, y2=Math.sin(a+.20)*r2;
+    const xm=(x1+x2)/2 + Math.cos(a*2.7+i)*3;
+    const ym=(y1+y2)/2 + Math.sin(a*2.4+i)*3;
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(xm,ym);
+    ctx.lineTo(x2,y2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save(); ctx.translate(-cam.x,-cam.y);
+
+  // floor + grid
+  ctx.fillStyle='#1c2631'; ctx.fillRect(0,0,world.w,world.h);
+  ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=1;
+  for(let x=0;x<world.w;x+=80){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,world.h); ctx.stroke(); }
+  for(let y=0;y<world.h;y+=80){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(world.w,y); ctx.stroke(); }
+
+  // Arena floor language: three subtle lanes and a central energy court.
+  ctx.save();
+
+  ctx.fillStyle='rgba(120,170,200,.025)';
+  ctx.fillRect(390,118,1020,300);
+  ctx.fillRect(390,442,1020,216);
+  ctx.fillRect(390,682,1020,300);
+
+  ctx.strokeStyle='rgba(150,205,230,.075)';
+  ctx.lineWidth=2;
+  ctx.setLineDash([18,18]);
+  for(const y of [210,550,890]){
+    ctx.beginPath(); ctx.moveTo(390,y); ctx.lineTo(1410,y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  ctx.fillStyle='rgba(75,145,175,.055)';
+  ctx.beginPath(); ctx.arc(900,550,170,0,Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle='rgba(125,205,230,.15)';
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(900,550,170,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(125,205,230,.09)';
+  ctx.beginPath(); ctx.arc(900,550,112,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(900,550,48,0,Math.PI*2); ctx.stroke();
+
+  ctx.strokeStyle='rgba(160,225,240,.13)';
+  ctx.lineWidth=3;
+  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+    ctx.beginPath();
+    ctx.moveTo(900+Math.cos(a)*178,550+Math.sin(a)*178);
+    ctx.lineTo(900+Math.cos(a)*205,550+Math.sin(a)*205);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle='rgba(115,190,235,.055)';
+  ctx.fillRect(440,525,120,50);
+  ctx.fillStyle='rgba(235,120,120,.045)';
+  ctx.fillRect(1240,525,120,50);
+
+  ctx.restore();
+
+  // bases
+  for(const b of baseFloors){
+    const blue=b.team==='blue';
+    ctx.save();
+    ctx.fillStyle=blue?'rgba(53,110,190,.11)':'rgba(190,65,65,.10)';
+    ctx.fillRect(b.x,b.y,b.w,b.h);
+    ctx.strokeStyle=blue?'rgba(105,180,255,.25)':'rgba(255,120,120,.23)';
+    ctx.lineWidth=1;
+    for(let gx=b.x+20;gx<b.x+b.w;gx+=28){ ctx.beginPath(); ctx.moveTo(gx,b.y); ctx.lineTo(gx,b.y+b.h); ctx.stroke(); }
+    for(let gy=b.y+20;gy<b.y+b.h;gy+=28){ ctx.beginPath(); ctx.moveTo(b.x,gy); ctx.lineTo(b.x+b.w,gy); ctx.stroke(); }
+    ctx.strokeStyle=blue?'rgba(115,195,255,.55)':'rgba(255,130,130,.50)';
+    ctx.setLineDash([7,6]); ctx.strokeRect(b.x+7,b.y+7,b.w-14,b.h-14); ctx.setLineDash([]);
+    ctx.font='bold 16px system-ui'; ctx.fillStyle=blue?'rgba(150,215,255,.9)':'rgba(255,170,170,.9)'; ctx.fillText(b.label,b.x+18,b.y+28);
+    ctx.restore();
+  }
+
+  for(const w of walls){
+    ctx.save();
+    if(w.kind==='base'){
+      const blue=w.team==='blue';
+      ctx.fillStyle=blue?'rgba(64,130,205,.72)':'rgba(185,70,70,.72)';
+      ctx.strokeStyle=blue?'rgba(155,220,255,.95)':'rgba(255,165,165,.95)';
+      ctx.lineWidth=2; ctx.fillRect(w.x,w.y,w.w,w.h); ctx.strokeRect(w.x+.5,w.y+.5,w.w-1,w.h-1);
+    } else if(w.kind==='crate'){
+      ctx.fillStyle='rgba(110,120,132,.92)'; ctx.strokeStyle='rgba(210,220,230,.35)'; ctx.lineWidth=2;
+      ctx.fillRect(w.x,w.y,w.w,w.h); ctx.strokeRect(w.x+3,w.y+3,w.w-6,w.h-6);
+      ctx.beginPath(); ctx.moveTo(w.x+7,w.y+7); ctx.lineTo(w.x+w.w-7,w.y+w.h-7); ctx.moveTo(w.x+w.w-7,w.y+7); ctx.lineTo(w.x+7,w.y+w.h-7); ctx.stroke();
+    } else if(w.kind==='ricochet'){
+      ctx.fillStyle='rgba(66,82,94,.98)';
+      ctx.strokeStyle='rgba(145,215,238,.58)';
+      ctx.lineWidth=2;
+      ctx.fillRect(w.x,w.y,w.w,w.h);
+      ctx.strokeRect(w.x+1,w.y+1,w.w-2,w.h-2);
+
+      ctx.strokeStyle='rgba(185,235,248,.24)';
+      ctx.lineWidth=1;
+      if(w.w>w.h){
+        const cy=w.y+w.h/2;
+        ctx.beginPath(); ctx.moveTo(w.x+8,cy); ctx.lineTo(w.x+w.w-8,cy); ctx.stroke();
+      }else{
+        const cx=w.x+w.w/2;
+        ctx.beginPath(); ctx.moveTo(cx,w.y+8); ctx.lineTo(cx,w.y+w.h-8); ctx.stroke();
+      }
+
+      ctx.fillStyle='rgba(180,225,240,.18)';
+      if(w.w>w.h){
+        ctx.fillRect(w.x+5,w.y+5,3,w.h-10);
+        ctx.fillRect(w.x+w.w-8,w.y+5,3,w.h-10);
+      }else{
+        ctx.fillRect(w.x+5,w.y+5,w.w-10,3);
+        ctx.fillRect(w.x+5,w.y+w.h-8,w.w-10,3);
+      }
+    } else {
+      ctx.fillStyle='rgba(83,93,104,.96)'; ctx.strokeStyle='rgba(200,215,225,.28)'; ctx.lineWidth=2;
+      ctx.fillRect(w.x,w.y,w.w,w.h); ctx.strokeRect(w.x+1,w.y+1,w.w-2,w.h-2);
+    }
+    ctx.restore();
+  }
+
+  // Base generators.
+  for(const g of generators){
+    const blue=g.team==='blue';
+    ctx.save();
+
+    // Ground pad.
+    ctx.fillStyle=blue?'rgba(60,130,200,.10)':'rgba(200,70,70,.09)';
+    ctx.fillRect(g.x-8,g.y-8,g.w+16,g.h+16);
+    ctx.strokeStyle=blue?'rgba(115,195,255,.28)':'rgba(255,135,135,.26)';
+    ctx.lineWidth=1.5;
+    ctx.strokeRect(g.x-8,g.y-8,g.w+16,g.h+16);
+
+    // Generator chassis.
+    ctx.fillStyle=g.destroyed?'rgba(45,48,52,.92)':(blue?'rgba(52,91,125,.98)':'rgba(120,58,58,.98)');
+    ctx.strokeStyle=g.destroyed?'rgba(130,130,130,.35)':(blue?'rgba(150,220,255,.80)':'rgba(255,165,165,.78)');
+    ctx.lineWidth=2;
+    ctx.fillRect(g.x,g.y,g.w,g.h);
+    ctx.strokeRect(g.x+1,g.y+1,g.w-2,g.h-2);
+
+    // Core glow.
+    if(!g.destroyed){
+      const pulse=.5+.5*Math.sin(performance.now()*.004+(blue?0:1.2));
+      ctx.fillStyle=blue?`rgba(90,195,255,${.18+.16*pulse})`:`rgba(255,105,105,${.16+.14*pulse})`;
+      ctx.fillRect(g.x+10,g.y+12,g.w-20,g.h-24);
+      ctx.strokeStyle=blue?`rgba(180,235,255,${.45+.25*pulse})`:`rgba(255,195,195,${.42+.24*pulse})`;
+      ctx.strokeRect(g.x+12,g.y+14,g.w-24,g.h-28);
+    }else{
+      ctx.strokeStyle='rgba(120,120,120,.35)';
+      ctx.beginPath();
+      ctx.moveTo(g.x+6,g.y+8); ctx.lineTo(g.x+g.w-6,g.y+g.h-8);
+      ctx.moveTo(g.x+g.w-6,g.y+8); ctx.lineTo(g.x+6,g.y+g.h-8);
+      ctx.stroke();
+    }
+
+    // Outward-facing generator weak-point panel.
+    ctx.fillStyle=g.destroyed?'rgba(45,45,45,.75)':'rgba(255,205,95,.26)';
+    ctx.strokeStyle=g.destroyed?'rgba(100,100,100,.35)':'rgba(255,220,125,.78)';
+    ctx.lineWidth=2;
+    ctx.fillRect(g.backDoor.x,g.backDoor.y,g.backDoor.w,g.backDoor.h);
+    ctx.strokeRect(g.backDoor.x+.5,g.backDoor.y+.5,g.backDoor.w-1,g.backDoor.h-1);
+
+    // HP bar + current numeric stat.
+    const hpPct=clamp(g.hp/g.maxHp,0,1);
+    ctx.fillStyle='rgba(0,0,0,.60)';
+    ctx.fillRect(g.x-12,g.y-24,g.w+24,7);
+    ctx.fillStyle=g.destroyed?'rgba(100,100,100,.75)':(blue?'#64b9ff':'#ef6868');
+    ctx.fillRect(g.x-12,g.y-24,(g.w+24)*hpPct,7);
+    ctx.font='bold 11px system-ui';
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,.88)';
+    ctx.fillText(`GEN ${Math.ceil(g.hp)}/${g.maxHp}`,g.x+g.w/2,g.y-29);
+
+    ctx.restore();
+  }
+
+  // Repulsor force-wave.
+  for(const rp of repulsorPulses){
+    const progress=1-rp.life/rp.maxLife;
+    const alpha=(1-progress)*.75;
+    const rr=rp.radius*(.18+.82*progress);
+    ctx.save();
+    ctx.strokeStyle=`rgba(150,225,255,${alpha})`;
+    ctx.lineWidth=5*(1-progress)+1;
+    ctx.fillStyle=`rgba(80,170,225,${0.06*(1-progress)})`;
+    ctx.beginPath(); ctx.arc(rp.x,rp.y,rr,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  // effects behind units
+  for(const ex of blasts){
+    const p=ex.life/ex.maxLife;
+    ctx.save();
+    if(ex.kind==='cannon'){
+      ctx.fillStyle=`rgba(255,55,70,${0.20*p})`;
+      ctx.strokeStyle=`rgba(255,135,145,${0.88*p})`;
+    }else{
+      ctx.fillStyle=`rgba(255,155,70,${0.18*p})`;
+      ctx.strokeStyle=`rgba(255,215,135,${0.80*p})`;
+    }
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(ex.x,ex.y,ex.r*(1-p*.35),0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  for(const h of heals){
+    const p=clamp(h.life/h.maxLife,0,1);
+    const pulse=0.5+0.5*Math.sin(performance.now()*.010);
+    ctx.save();
+    ctx.fillStyle=`rgba(100,255,170,${0.055+0.035*pulse})`;
+    ctx.strokeStyle=`rgba(160,255,210,${0.38+0.28*pulse})`;
+    ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.arc(h.x,h.y,h.r*(0.92+0.05*pulse),0,Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle=`rgba(205,255,225,${0.22+0.20*pulse})`;
+    ctx.lineWidth=1.2;
+    ctx.beginPath();
+    ctx.arc(h.x,h.y,h.r*.62,0,Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Debug radar pulse: one lightweight expanding ring from the player.
+  for(const pulse of radarPulses){
+    const p=1-clamp(pulse.life/pulse.maxLife,0,1);
+    const r=pulse.maxRadius*p;
+    const alpha=(1-p)*.42;
+    ctx.save();
+    ctx.strokeStyle=`rgba(115,220,255,${alpha})`;
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(pulse.x,pulse.y,r,0,Math.PI*2);
+    ctx.stroke();
+
+    ctx.strokeStyle=`rgba(190,245,255,${alpha*.55})`;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.arc(pulse.x,pulse.y,Math.max(0,r-18),0,Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Allied test player. Allies are always visible to their own team.
+  for(const ally of allies){
+    if(ally.hp<=0) continue;
+
+    if(ally.energy>0){
+      const ep=clamp(ally.energy/ally.maxEnergy,0,1);
+      ctx.save();
+      ctx.translate(ally.x,ally.y);
+      ctx.fillStyle=`rgba(104,184,255,${0.12*ep})`;
+      ctx.beginPath(); ctx.arc(0,0,ally.r+7,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    drawSoldier(ally.x,ally.y,ally.angle,teamBodyColor(ally.team),teamDetailColor(ally.team),ally.r,ally.classId);
+
+    ctx.fillStyle='rgba(0,0,0,.5)';
+    ctx.fillRect(ally.x-18,ally.y-35,36,4);
+    ctx.fillStyle='#68b8ff';
+    ctx.fillRect(ally.x-18,ally.y-35,36*(ally.energy/ally.maxEnergy),4);
+
+    ctx.fillStyle='rgba(0,0,0,.5)';
+    ctx.fillRect(ally.x-18,ally.y-29,36,5);
+    ctx.fillStyle='#72e27e';
+    ctx.fillRect(ally.x-18,ally.y-29,36*(ally.hp/ally.maxHp),5);
+
+    ctx.font='bold 10px system-ui';
+    ctx.fillStyle='rgba(175,220,255,.95)';
+    ctx.fillText('ALLY',ally.x-13,ally.y-41);
+  }
+
+  // Enemies fade in/out as shared LOS is gained or lost.
+  for(const e of enemies){
+    const vis=clamp(e.visAlpha||0,0,1);
+    if(vis<=0.01) continue;
+
+    ctx.save();
+    ctx.globalAlpha=vis;
+
+    if(e.energy>0){
+      const ep=clamp(e.energy/e.maxEnergy,0,1);
+      const baseAlpha=0.18*ep, pulseAlpha=0.28*e.energyPulse*ep;
+      ctx.save(); ctx.translate(e.x,e.y);
+      ctx.fillStyle=`rgba(104,184,255,${baseAlpha+pulseAlpha})`; ctx.beginPath(); ctx.arc(0,0,e.r+8+e.energyPulse*4,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle=`rgba(170,225,255,${0.55*ep+0.28*e.energyPulse*ep})`; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+5+e.energyPulse*2,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    drawDisruptionZaps(e);
+    const body = e.classId==='heavy' ? '#c86f45' : e.classId==='assassin' ? '#9a78ff' : e.classId==='medic' ? '#42c98e' : (e.bounty>=50?'#ff9d3b':(e.team==='blue'?'#4d94d8':'#df5757'));
+    const detail= e.classId==='heavy' ? '#ffe2cf' : e.classId==='assassin' ? '#ead8ff' : e.classId==='medic' ? '#d9ffef' : '#ffd2d2';
+    drawSoldier(e.x,e.y,e.angle,body,detail,e.r,e.classId);
+    drawKnifeSlash(e);
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(e.x-18,e.y-31,36,4); ctx.fillStyle='#68b8ff'; ctx.fillRect(e.x-18,e.y-31,36*(e.energy/e.maxEnergy),4);
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(e.x-18,e.y-25,36,5); ctx.fillStyle='#e85f5f'; ctx.fillRect(e.x-18,e.y-25,36*(e.hp/e.maxHp),5);
+    if(e.bounty>0){ ctx.fillStyle='#ffd36b'; ctx.font='bold 12px system-ui'; ctx.fillText('$'+e.bounty,e.x-12,e.y-37); }
+    ctx.font='bold 11px system-ui'; ctx.fillStyle='#8fd0ff'; ctx.fillText(`E ${Math.ceil(e.energy)}/${e.maxEnergy} • ${Math.round(100*e.energy/e.maxEnergy)}% DR`,e.x-34,e.y-42);
+    ctx.fillStyle='#9bf0a2'; ctx.fillText(`H ${Math.ceil(e.hp)}/${e.maxHp}`,e.x-25,e.y-54);
+    ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='10px system-ui'; ctx.fillText(classes[e.classId].name,e.x-22,e.y+25);
+
+    ctx.restore();
+  }
+
+  // grenades should be visible
+  for(const g of grenades){
+    ctx.save(); ctx.translate(g.x,g.y);
+    ctx.fillStyle='#f0f3f6'; ctx.beginPath(); ctx.arc(0,0,g.r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,165,70,.95)'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(0,0,g.r+1.5,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='#ffae62'; ctx.fillRect(-1.5,-g.r-3,3,4);
+    ctx.restore();
+  }
+
+  for(const b of bullets){
+    if(b.type==='energy'){
+      if(b.cannonBall){
+        ctx.save();
+        ctx.translate(b.x,b.y);
+        ctx.fillStyle='rgba(255,60,60,.16)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+8,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(255,70,70,.34)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+4,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(255,95,95,.92)';
+        ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(255,225,225,.95)';
+        ctx.beginPath(); ctx.arc(-2,-2,b.r*.34,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }else if(b.longBeam){
+        const ang=Math.atan2(b.vy,b.vx);
+        ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(ang); ctx.lineCap='round';
+        ctx.strokeStyle='rgba(116,216,255,.30)'; ctx.lineWidth=10; ctx.beginPath(); ctx.moveTo(-18,0); ctx.lineTo(18,0); ctx.stroke();
+        ctx.strokeStyle='rgba(215,248,255,.95)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(16,0); ctx.stroke();
+        ctx.restore();
+      }else if(b.plasmaSMG){
+        // Plasma SMG: extremely small, bright green energy pellet.
+        ctx.save();
+        ctx.translate(b.x,b.y);
+        ctx.fillStyle='rgba(65,255,105,.14)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+1.6,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(120,255,145,.48)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+.55,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(225,255,230,1)';
+        ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }else if(b.plasma){
+        // Green plasma pistol orb with a restrained glow.
+        ctx.save();
+        ctx.translate(b.x,b.y);
+        ctx.fillStyle='rgba(65,255,105,.18)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+2.2,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(105,255,130,.38)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+1.0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(205,255,210,.98)';
+        ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }else if(b.zapper){
+        ctx.save();
+        ctx.translate(b.x,b.y);
+        ctx.strokeStyle='rgba(180,245,255,.85)';
+        ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.moveTo(-5,-2); ctx.lineTo(-1,2); ctx.lineTo(2,-2); ctx.lineTo(6,1);
+        ctx.stroke();
+        ctx.fillStyle='rgba(125,225,255,.25)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+3,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }else{
+        ctx.save();
+        ctx.translate(b.x,b.y);
+        ctx.fillStyle='rgba(115,220,255,.25)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+3,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(220,250,255,.95)';
+        ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+    } else {
+      const alpha=b.fade ? Math.max(.10,bulletDamageScale(b)) : 1;
+      ctx.fillStyle=b.owner==='e'?`rgba(255,139,139,${alpha})`:`rgba(255,227,123,${alpha})`;
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  drawAllCorpses();
+
+  if(player.deadTimer<=0){
+    if(player.energy>0){
+      const ep=clamp(player.energy/player.maxEnergy,0,1);
+      const baseAlpha=0.18*ep, pulseAlpha=0.28*player.energyPulse*ep;
+      ctx.save(); ctx.translate(player.x,player.y);
+      ctx.fillStyle=`rgba(104,184,255,${baseAlpha+pulseAlpha})`; ctx.beginPath(); ctx.arc(0,0,player.r+9+player.energyPulse*4,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle=`rgba(170,225,255,${0.55*ep+0.28*player.energyPulse*ep})`; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,player.r+6+player.energyPulse*2,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    drawDisruptionZaps(player);
+    drawSoldier(player.x,player.y,player.angle,teamBodyColor(player.team),teamDetailColor(player.team),player.r,player.classId);
+    drawKnifeSlash(player);
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(player.x-25,player.y-36,50,5); ctx.fillStyle='#68b8ff'; ctx.fillRect(player.x-25,player.y-36,50*(player.energy/player.maxEnergy),5);
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(player.x-25,player.y-29,50,6); ctx.fillStyle='#72e27e'; ctx.fillRect(player.x-25,player.y-29,50*(player.hp/player.maxHp),6);
+    ctx.font='bold 11px system-ui'; ctx.fillStyle='#8fd0ff'; ctx.fillText(`E ${Math.ceil(player.energy)}/${player.maxEnergy} • ${Math.round(100*player.energy/player.maxEnergy)}% DR`,player.x-38,player.y-43);
+    ctx.fillStyle='#9bf0a2'; ctx.fillText(`H ${Math.ceil(player.hp)}/${player.maxHp}`,player.x-28,player.y-55);
+  } else {
+    ctx.textAlign='center';
+    ctx.font='bold 25px system-ui';
+    ctx.fillStyle='white';
+    ctx.fillText(`RESPAWNING ${Math.max(0,player.deadTimer).toFixed(1)}s`,player.x,player.y-12);
+    ctx.font='12px system-ui';
+    ctx.fillStyle='rgba(255,255,255,.78)';
+    ctx.fillText(`Next class: ${classes[player.pendingClassId].name}`,player.x,player.y+12);
+    ctx.textAlign='left';
+  }
+
+  ctx.restore();
+
+  if(!roundStarted){
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.48)';
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';
+    ctx.fillStyle='white';
+    ctx.font='bold 28px system-ui';
+    ctx.fillText('CHOOSE YOUR CLASS',W/2,H*.36);
+    ctx.restore();
+  }
+
+  if(gameOver){
+    const playerWon=winningTeam===player.team;
+    ctx.save();
+    ctx.textAlign='center';
+
+    const bannerW=Math.min(420,W-24);
+    const bannerH=matchFrozen?58:72;
+    const bx=(W-bannerW)/2;
+    const by=18;
+
+    ctx.fillStyle='rgba(6,10,16,.80)';
+    ctx.fillRect(bx,by,bannerW,bannerH);
+    ctx.strokeStyle=playerWon?'rgba(145,210,255,.72)':'rgba(255,145,145,.72)';
+    ctx.lineWidth=2;
+    ctx.strokeRect(bx+.5,by+.5,bannerW-1,bannerH-1);
+
+    ctx.fillStyle=playerWon?'#9fd4ff':'#ffaaaa';
+    ctx.font='bold 22px system-ui';
+    ctx.fillText(playerWon?'VICTORY':'DEFEAT',W/2,by+28);
+
+    ctx.fillStyle='rgba(255,255,255,.90)';
+    ctx.font='bold 13px system-ui';
+    if(matchFrozen){
+      ctx.fillText('MATCH COMPLETE • ALL PLAYERS RETURNED TO BASE',W/2,by+49);
+    }else{
+      ctx.fillText(
+        `${winningTeam.toUpperCase()} TEAM WINS • RETURN TO BASE IN ${postVictoryTimer.toFixed(1)}s`,
+        W/2,
+        by+51
+      );
+      ctx.font='11px system-ui';
+      ctx.fillStyle='rgba(255,255,255,.68)';
+      ctx.fillText('Post-game combat remains active',W/2,by+66);
+    }
+    ctx.restore();
+  }
+
+  if(paused && singlePlayer){
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.48)';
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';
+    ctx.fillStyle='white';
+    ctx.font='bold 34px system-ui';
+    ctx.fillText('PAUSED',W/2,H/2-10);
+    ctx.font='14px system-ui';
+    ctx.fillStyle='rgba(255,255,255,.82)';
+    ctx.fillText('Pause disabled in team-switch debug mode',W/2,H/2+20);
+    ctx.restore();
+  }
+
+  updateLoadoutCooldownVisuals();
+  document.getElementById('cash').textContent=`Cash: $${cash}`;
+  document.getElementById('bounty').textContent=netJoined
+    ? `Room: ${netRoomCode} | Team: ${player.team.toUpperCase()} | Bounty: ${player.bounty}`
+    : `Bounty: ${player.bounty} | Multiplier: ${multiplier(player.bounty).toFixed(2)}× | Toughness: ${Math.round(toughness(player.bounty)*100)}%`;
+  document.getElementById('score').textContent=!roundStarted
+    ? `Choose a class to start`
+    : gameOver
+      ? (matchFrozen
+        ? `${winningTeam.toUpperCase()} TEAM WINS • All players returned to base`
+        : `${winningTeam.toUpperCase()} TEAM WINS • Return to base in ${postVictoryTimer.toFixed(1)}s`)
+    : player.deadTimer>0
+      ? `Respawning: ${player.deadTimer.toFixed(1)}s | Next class: ${classes[player.pendingClassId].name} | Kills: ${kills} | Deaths: ${deaths}`
+      : `Team: ${player.team.toUpperCase()} | Class: ${classes[player.classId].name} (${classes[player.classId].weight}) | Energy: ${Math.ceil(player.energy)}/${player.maxEnergy} (${Math.round(100*player.energy/player.maxEnergy)}% DR) | Regen wait: ${Math.max(0,(4+(player.zapRechargeExtra||0))-player.lastHit).toFixed(1)}s${player.regenSlowTimer>0?' | REGEN 35%':''}${player.sprinting?' | SPRINT':''}${player.zapTimer>0?' | ZAPPED':''} | HP: ${Math.ceil(player.hp)}/${player.maxHp} | Kills: ${kills} | Deaths: ${deaths}`;
+}
+
+renderLoadout();
+renderRespawnClassPicker();
+let last=performance.now();
+function loop(t){ const dt=Math.min(.033,(t-last)/1000); last=t; update(dt); draw(); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

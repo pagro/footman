@@ -402,6 +402,16 @@ function makeRoomCode(){
   throw new Error('Unable to allocate room code');
 }
 function send(ws,obj){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(obj));}
+
+function emitGameEvent(room,event){
+  const payload=JSON.stringify({
+    type:'game_event',
+    event:{...event,serverTick:room.tick}
+  });
+  for(const ws of room.clients.keys()){
+    if(ws.readyState===WebSocket.OPEN) ws.send(payload);
+  }
+}
 function leaveRoom(ws){
   if(!ws.roomCode)return;
   const room=rooms.get(ws.roomCode);
@@ -457,6 +467,7 @@ function energyDamage(target,dmg,opts={}){
 function killEntity(room,e){
   if(!e.alive)return;
   e.alive=false;e.hp=0;e.deadTimer=4;e.vx=e.vy=0;
+  emitGameEvent(room,{kind:'death',entityId:e.id,x:e.x,y:e.y});
   room.corpses.push({
     id:'C'+(++nextEffectId),ownerId:e.id,team:e.team,classId:e.classId,
     x:e.x,y:e.y,angle:e.angle,r:e.r,life:4
@@ -493,11 +504,26 @@ function damageGenerator(room,gen,rawDamage,weaponKind,hitX,hitY){
     gen.destroyed=true;
     room.winningTeam=opposingTeam(gen.team);
     room.postVictoryTimer=20;
+    emitGameEvent(room,{
+      kind:'generator_destroyed',
+      team:gen.team,
+      winningTeam:room.winningTeam,
+      x:gen.x+gen.w/2,y:gen.y+gen.h/2
+    });
     room.effects.push({id:'E'+(++nextEffectId),kind:'cannon',x:gen.x+gen.w/2,y:gen.y+gen.h/2,r:120,life:.65,maxLife:.65});
   }
 }
 
 function addBullet(room,owner,angle,speed,damage,meta={}){
+  if(!meta.noEvent){
+    emitGameEvent(room,{
+      kind:'weapon_fired',
+      actorId:owner.id,
+      team:owner.team,
+      weapon:meta.weaponKind||'projectile',
+      x:owner.x,y:owner.y,angle
+    });
+  }
   room.bullets.push({
     id:'B'+(++nextProjectileId),ownerId:owner.id,team:owner.team,
     x:owner.x+Math.cos(angle)*(owner.r+8),y:owner.y+Math.sin(angle)*(owner.r+8),
@@ -526,6 +552,7 @@ function bulletScale(b){
 
 function explodeCannon(room,b){
   const radius=b.explodeRadius||68,damage=b.explodeDamage||120;
+  emitGameEvent(room,{kind:'cannon_explosion',actorId:b.ownerId,x:b.x,y:b.y});
   room.effects.push({id:'E'+(++nextEffectId),kind:'cannon',x:b.x,y:b.y,r:radius,life:.34,maxLife:.34});
   const gen=room.generators.find(g=>g.team!==b.team);
   if(gen&&!gen.destroyed){
@@ -548,6 +575,7 @@ function explodeCannon(room,b){
 
 function throwGrenade(room,owner){
   const speed=185+(owner.input.sprint?22:0);
+  emitGameEvent(room,{kind:'grenade_throw',actorId:owner.id,x:owner.x,y:owner.y});
   room.grenades.push({
     id:'G'+(++nextGrenadeId),ownerId:owner.id,team:owner.team,
     x:owner.x+Math.cos(owner.angle)*(owner.r+6),y:owner.y+Math.sin(owner.angle)*(owner.r+6),
@@ -575,6 +603,7 @@ function embedGrenade(g,gen,y){
 function triggerRepulsor(room,e){
   if(!e.alive||e.repulsorCd>0||e.energy<75)return;
   e.energy-=75;e.repulsorCd=2.8;
+  emitGameEvent(room,{kind:'repulsor',actorId:e.id,x:e.x,y:e.y});
   room.effects.push({id:'E'+(++nextEffectId),kind:'repulsor',x:e.x,y:e.y,r:155,life:.34,maxLife:.34});
   const radius=155,enemyImpulse=205,projectileImpulse=310;
   for(const q of room.players.values()){
@@ -610,7 +639,7 @@ function processCommands(room,e){
     }else if(cmd==='repulsor'){
       triggerRepulsor(room,e);
     }else if(cmd==='radar'){
-      if(e.alive)room.teamRadar[e.team]=2;
+      if(e.alive){room.teamRadar[e.team]=2;emitGameEvent(room,{kind:'radar',actorId:e.id,team:e.team,x:e.x,y:e.y});}
     }else if(cmd==='switchTeam'){
       e.team=opposingTeam(e.team);
       const teammates=[...room.players.values()].filter(x=>x.team===e.team);
@@ -678,9 +707,10 @@ function fireSecondary(room,e){
   if(kind==='blaster'){
     if(e.footmanSecondary==='shotgun'){
       if(e.input.rmb&&e.shotgunCd<=0){
+        emitGameEvent(room,{kind:'weapon_fired',actorId:e.id,team:e.team,weapon:'shotgun',x:e.x,y:e.y,angle:e.angle});
         for(let i=0;i<9;i++){
           const spread=(i-4)*.028+rand(-.008,.008);
-          addBullet(room,e,e.angle+spread,176,18,{type:'physical',color:'#ffd98a',r:3,life:.62,fade:true,falloffStart:22,falloffEnd:116,minScale:.04,weaponKind:'shotgun'});
+          addBullet(room,e,e.angle+spread,176,18,{type:'physical',color:'#ffd98a',r:3,life:.62,fade:true,falloffStart:22,falloffEnd:116,minScale:.04,weaponKind:'shotgun',noEvent:true});
         }
         e.shotgunCd=.90;
       }
@@ -700,6 +730,7 @@ function fireSecondary(room,e){
     const rising=e.input.rmb&&!e.previousInput.rmb;
     if(rising&&!e.cannonCharging&&e.cannonCd<=0&&e.energy>=cost){
       e.cannonCharging=true;e.cannonCharge=0;e.cannonStartX=e.x;e.cannonStartY=e.y;
+      emitGameEvent(room,{kind:'cannon_charge',actorId:e.id,x:e.x,y:e.y});
     }
     if(e.cannonCharging){
       const moved=Math.hypot(e.x-e.cannonStartX,e.y-e.cannonStartY)>1.5;
@@ -726,13 +757,19 @@ function fireSecondary(room,e){
       const w=WEAPON_STATS.knife;
       if(e.input.rmb&&e.utilityCd<=0){
         e.utilityCd=w.cooldown;e.knifeAnim=.24;
+        emitGameEvent(room,{kind:'weapon_fired',actorId:e.id,team:e.team,weapon:'knife',x:e.x,y:e.y,angle:e.angle});
         let best=null,bestD=Infinity;
         for(const q of room.players.values()){
           if(!q.alive||q.team===e.team)continue;
           const d=distance(e,q);
           if(d<w.range+q.r&&d<bestD&&!lineBlocked(e.x,e.y,q.x,q.y)){best=q;bestD=d;}
         }
-        if(best){energyDamage(best,w.damage,{energyMult:w.energyMult,hpMult:w.hpMult});if(best.hp<=0)killEntity(room,best);}
+        if(best){
+          const shielded=best.energy>0;
+          energyDamage(best,w.damage,{energyMult:w.energyMult,hpMult:w.hpMult});
+          emitGameEvent(room,{kind:'hit',targetId:best.id,shielded,x:best.x,y:best.y});
+          if(best.hp<=0)killEntity(room,best);
+        }
         const gen=room.generators.find(g=>g.team!==e.team);
         if(gen&&!gen.destroyed&&pointRectDistance(e.x,e.y,gen)<=w.range)damageGenerator(room,gen,w.damage,'knife',e.x,e.y);
       }
@@ -774,6 +811,7 @@ function fireUtility(room,e){
         e.healCharge+=DT;
         if(e.healCharge>=2){
           e.energy-=cost;e.healCd=4;e.healCharge=0;
+          emitGameEvent(room,{kind:'heal',actorId:e.id,x:e.x,y:e.y});
           room.effects.push({id:'E'+(++nextEffectId),kind:'heal',sourceId:e.id,x:e.x,y:e.y,r:92,life:2,maxLife:2});
           queueHeal(room,e,30,2,e);
           for(const q of room.players.values()){
@@ -912,10 +950,12 @@ function updateBullets(room){
       if(Math.hypot(b.x-q.x,b.y-q.y)<b.r+q.r){
         if(b.cannonBall)explodeCannon(room,b);
         else{
+          const shielded=q.energy>0;
           energyDamage(q,b.damage*bulletScale(b),{
             energyMult:b.energyMult,hpMult:b.hpMult,slowDuration:b.slowDuration,
             zapRechargeExtra:b.zapRechargeExtra,regenSlowDuration:b.regenSlowDuration
           });
+          emitGameEvent(room,{kind:'hit',targetId:q.id,shielded,x:q.x,y:q.y});
           if(q.hp<=0)killEntity(room,q);
         }
         room.bullets.splice(i,1);hit=true;break;
@@ -952,6 +992,7 @@ function updateGrenades(room){
     }
     if(!g.embeddedGeneratorId){g.vx*=Math.max(0,1-.95*DT);g.vy*=Math.max(0,1-.95*DT);}
     if(g.fuse<=0){
+      emitGameEvent(room,{kind:'grenade_explosion',actorId:g.ownerId,x:g.x,y:g.y});
       room.effects.push({id:'E'+(++nextEffectId),kind:'grenade',x:g.x,y:g.y,r:76,life:.24,maxLife:.24});
       const gen=room.generators.find(x=>x.team!==g.team);
       if(gen&&!gen.destroyed){
@@ -965,7 +1006,9 @@ function updateGrenades(room){
         if(!q.alive||q.team===g.team)continue;
         const d=Math.max(0,Math.hypot(q.x-g.x,q.y-g.y)-q.r);
         if(d<=76&&!lineBlocked(g.x,g.y,q.x,q.y)){
+          const shielded=q.energy>0;
           energyDamage(q,grenadeDamageAt(d),{energyMult:.20,hpMult:1});
+          emitGameEvent(room,{kind:'hit',targetId:q.id,shielded,x:q.x,y:q.y});
           if(q.hp<=0)killEntity(room,q);
         }
       }
@@ -1057,10 +1100,9 @@ function tickRoom(room){
     room.postVictoryTimer=Math.max(0,room.postVictoryTimer-DT);
     if(room.postVictoryTimer<=0)returnAllToBases(room);
   }
-  if(room.tick%2===0){
-    for(const [ws,pid]of room.clients){
-      const viewer=room.players.get(pid);if(viewer)send(ws,snapshotFor(room,viewer));
-    }
+  for(const [ws,pid]of room.clients){
+    const viewer=room.players.get(pid);
+    if(viewer)send(ws,snapshotFor(room,viewer));
   }
 }
 setInterval(()=>{for(const room of rooms.values())tickRoom(room);},1000/TICK_RATE);
