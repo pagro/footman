@@ -1,11 +1,12 @@
 {
-  "name": "infantry-v100-multiplayer-named",
-  "version": "2.1.0",
+  "name": "infantry-v183-multiplayer-4v4",
+  "version": "1.0.0",
   "private": true,
-  "description": "Responsive client-predicted, server-authoritative multiplayer rebuild of Infantry v100",
+  "description": "Server-authoritative 4v4 Infantry browser prototype based on the v183 single-player balance",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node smoke_test.js"
   },
   "engines": {
     "node": ">=20"
