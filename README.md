@@ -80,3 +80,8 @@ Use the included `render.yaml`, or configure:
 
 ## v186 Repulsor refresh
 The first Repulsor use starts a 30-second pool refresh timer. If the second charge remains unused when the timer expires, the pool returns to two charges immediately. If the second charge is spent, a fresh 30-second exhausted cooldown starts from that second use.
+
+
+## v187 movement and cannon LOS
+- Left/right strafing is reduced by 30% (70% of previous lateral movement), with matching server authority and client prediction.
+- Energy Cannon explosion damage is LOS-only. Walls block explosion damage to players and generators.

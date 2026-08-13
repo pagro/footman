@@ -2659,7 +2659,8 @@ function update(dt){
       forward/=inputMag;
 
       const fx=Math.cos(player.angle),fy=Math.sin(player.angle),rx=-fy,ry=fx;
-      const ax=fx*forward+rx*strafe,ay=fy*forward+ry*strafe;
+      const strafeMove=strafe*.70;
+      const ax=fx*forward+rx*strafeMove,ay=fy*forward+ry*strafeMove;
       const fortMove=(player.fortifyTimer||0)>0?.20:1;
       player.vx+=ax*player.accel*(player.sprinting?1.35:1)*statusMult*fortMove*dt;
       player.vy+=ay*player.accel*(player.sprinting?1.35:1)*statusMult*fortMove*dt;
