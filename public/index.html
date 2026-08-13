@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>Infantry v183 Multiplayer 4v4</title>
+<title>Infantry v185 Multiplayer 4v4</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#12151b;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff;touch-action:none}
   #wrap{position:relative;width:100%;height:100%}
@@ -247,7 +247,16 @@ function soundHpHit(){ noiseBurst(.055,.027,520); tone(120,.055,'square',.02,-35
 function soundDeath(){ tone(170,.16,'sawtooth',.038,-100); setTimeout(()=>tone(95,.22,'square',.03,-45),55); }
 function soundGrenadeThrow(){ tone(240,.055,'triangle',.024,-80); }
 function soundExplosion(){ noiseBurst(.18,.06,120); tone(82,.20,'sawtooth',.05,-35); }
+function soundHealStart(){
+  tone(315,.10,'sine',.018,145);
+  setTimeout(()=>tone(455,.13,'triangle',.015,185),55);
+}
 function soundHeal(){ tone(460,.08,'sine',.02,120); tone(690,.10,'sine',.015,130); }
+function soundSplat(){
+  noiseBurst(.105,.040,110);
+  tone(92,.12,'sawtooth',.030,-28);
+  setTimeout(()=>tone(64,.10,'triangle',.018,-16),28);
+}
 function soundRepulsor(){
   tone(135,.16,'sine',.042,170);
   tone(260,.11,'triangle',.025,210);
@@ -751,7 +760,8 @@ const weaponStats = {
     speed:194.4,
     burstCount:3,
     burstGap:.2277,
-    cooldown:.70
+    cooldown:.70,
+    radius:2.8
   },
   machinegun:{
     damage:24,
@@ -769,7 +779,7 @@ const weaponStats = {
     speed:165,
     chargeTime:.50,
     fireInterval:.10,
-    energyCost:2,
+    energyCost:4,
     spread:.18,
     radius:5,
     range:84.5,
@@ -814,19 +824,19 @@ const weaponStats = {
     cooldown:.55,
     energyMult:1.5,
     hpMult:.6,
-    radius:2.2,
+    radius:1.35,
     life:1.1316
   },
   plasmaSMG:{
     damage:12,
-    speed:210,
+    speed:168,
     energyCost:3.5,
     burstCount:4,
     burstGap:.08,
     burstCooldown:.65,
     energyMult:1.45,
     hpMult:.58,
-    radius:1.35,
+    radius:1.7,
     life:.868,
     spread:.028
   },
@@ -834,7 +844,7 @@ const weaponStats = {
     damage:22,
     speed:205,
     cooldown:.48,
-    radius:2.4,
+    radius:1.25,
     life:1.15
   },
   knife:{
@@ -863,7 +873,8 @@ const weaponStats = {
     burstCount:2,
     burstGap:.22,
     cooldown:1.1,
-    life:1.53
+    life:1.53,
+    radius:2.2
   }
 };
 
@@ -881,7 +892,7 @@ const classes = {
     weapon3:{name:'Frag Grenade', kind:'grenade'}
   },
   assassin: {
-    name:'Assassin', maxHp:130, maxEnergy:200, speed:50, accel:110, drag:2.3, energyRegen:15, weight:'Light', radius:9.6,
+    name:'Assassin', maxHp:130, maxEnergy:200, speed:42.5, accel:110, drag:2.3, energyRegen:15, weight:'Light', radius:9.6,
     weapon1:{name:'Plasma SMG', kind:'plasmaSMG'},
     weapon2:{name:'Knife', kind:'knife'},
     weapon3:{name:'Zapper', kind:'zapper'}
@@ -907,6 +918,7 @@ let netPlayerName='Player';
 let netSendTimer=0;
 const netEnemyCache=new Map();
 let netRoster={blue:[],red:[]};
+let netFlagScore={blue:0,red:0},netFlagWinScore=3;
 
 function mpSetStatus(text,error=false){
   const el=document.getElementById('mpStatus');
@@ -1013,14 +1025,16 @@ function handleGameEvent(ev){
     return;
   }
   if(ev.kind==='repulsor'){ soundRepulsor(); return; }
+  if(ev.kind==='heal_start'){ soundHealStart(); return; }
   if(ev.kind==='heal'){ soundHeal(); return; }
   if(ev.kind==='hit'&&ev.targetId===netPlayerId){
     if(ev.shielded) soundEnergyAbsorb();
     else soundHpHit();
     return;
   }
-  if(ev.kind==='death'&&ev.entityId===netPlayerId){
-    soundDeath();
+  if(ev.kind==='death'){
+    if(ev.entityId===netPlayerId) soundDeath();
+    else if(ev.team&&ev.team!==player.team) soundSplat();
     return;
   }
   if(ev.kind==='radar'){ tone(720,.09,'sine',.025,260); }
@@ -1112,6 +1126,8 @@ function applyNetworkSnapshot(msg){
   postVictoryTimer=msg.postVictoryTimer||0;
   matchFrozen=!!msg.matchFrozen;
   netRoster=msg.roster||{blue:[],red:[]};
+  netFlagScore=msg.flagScore||{blue:0,red:0};
+  netFlagWinScore=msg.flagWinScore||3;
   if(Array.isArray(msg.flags)) flags=msg.flags.map(f=>({...f}));
   renderTeamRoster();
 
@@ -1138,7 +1154,7 @@ const player={
   footmanSecondary:'blaster',assassinSecondary:'knife',heavyPrimary:'machinegun',sergeantUtility:'jammer',
   grenadeCd:0,grenadesRemaining:3,medicPistolCd:0,healCd:0,machineCharge:0,machineBurstTimer:0,machineSustainTime:0,machineCd:0,
   flameCharge:0,flameCd:0,cannonCharge:0,cannonCd:0,cannonCharging:false,knifeAnim:0,utilityCd:0,zapperCd:0,
-  healCharge:0,healCharging:false,repulsorCd:0,slowTimer:0,zapTimer:0,zapVisualTimer:0,zapRechargeExtra:0,regenSlowTimer:0,
+  healCharge:0,healCharging:false,repulsorCd:0,repulsorCharges:2,repulsorRechargeTimer:0,slowTimer:0,zapTimer:0,zapVisualTimer:0,zapRechargeExtra:0,regenSlowTimer:0,
   fortifyTimer:0,fortifyShield:0,fortifyCd:0,cloakTimer:0,cloakRevealTimer:0,jammerActive:false,sensorsActive:false,
   jammerReactivationCd:0,sensorsReactivationCd:0,classChangeTarget:null,classChangeTimer:0,streak:0,bounty:0,kills:0,deaths:0,cash:0,corpse:null
 };
@@ -1644,6 +1660,7 @@ function explodeCannonBall(b){
 function triggerClassAbility(){
   if(!netJoined||player.deadTimer>0||matchFrozen)return;
   if(player.classId==='sergeant'){ openSergeantSummonMenu(); return; }
+  if(player.classId==='assassin'&&player.carryingFlagTeam)return;
   mpCommand('ability');
   if(player.classId==='footman'||player.classId==='medic') soundRepulsor();
   else if(player.classId==='heavy') tone(180,.12,'square',.030,100);
@@ -1676,7 +1693,7 @@ function drawCarriedFlag(ent){
 }
 
 function drawFortifyShield(ent){
-  if(!ent || (ent.fortifyTimer||0)<=0 || (ent.fortifyShield||0)<=0) return;
+  if(!ent || ent.alive===false || ent.hp<=0 || (ent.fortifyTimer||0)<=0 || (ent.fortifyShield||0)<=0) return;
   const pct=clamp(ent.fortifyShield/(ent.fortifyShieldMax||FORTIFY_SHIELD_HP),0,1);
   ctx.save();
   ctx.translate(ent.x,ent.y);
@@ -1796,7 +1813,7 @@ function drawSoldier(x,y,angle,bodyColor,detailColor,r,classId='footman'){
     ctx.arc(r*.54,0,r*.29,0,Math.PI*2);
     ctx.fill();
 
-    ctx.fillStyle='rgba(255,216,74,.98)';
+    ctx.fillStyle=detailColor;
     ctx.beginPath();
     ctx.moveTo(-r*.22,-r*.34);
     ctx.lineTo(r*.12,-r*.22);
@@ -1805,7 +1822,7 @@ function drawSoldier(x,y,angle,bodyColor,detailColor,r,classId='footman'){
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle='rgba(255,245,180,.95)';
+    ctx.fillStyle=detailColor;
     ctx.fillRect(-r*.24,-r*.27,r*.22,r*.08);
 
   }else if(classId==='assassin'){
@@ -1876,7 +1893,7 @@ function drawCorpseModel(c){
   // Avoid Canvas filters here—they are expensive on mobile and caused
   // noticeable frame drops during the respawn state.
   ctx.globalAlpha=.42;
-  drawSoldier(c.x,c.y,c.angle,body,detail,c.r);
+  drawSoldier(c.x,c.y,c.angle,body,detail,c.r,c.classId||'footman');
 
   ctx.globalAlpha=.18;
   ctx.fillStyle='black';
@@ -2066,13 +2083,43 @@ function renderTeamRoster(){
 }
 function friendlyTargets(){return [player,...allies].filter(x=>x&&x.alive!==false&&x.deadTimer<=0);}
 function closeSergeantMenu(){const m=document.getElementById('sergeantMenu');if(m){m.classList.remove('show');m.innerHTML='';}}
+function summonTargetLabel(x){
+  const name=x.isBot?'BOT':(x.playerName||'ALLY');
+  const cost=x.carryingFlagTeam?150:50;
+  return `${name}${x.carryingFlagTeam?' • FLAG':''} • ${cost} E`;
+}
 function openSergeantSummonMenu(){
-  if(player.classId!=='sergeant')return;const m=document.getElementById('sergeantMenu');if(!m)return;
-  const ts=friendlyTargets().filter(x=>x.id!==netPlayerId);m.innerHTML=`<div class="title">SUMMON FRIENDLY</div><div class="hint">50 Energy. Server validates Jammer state.</div>`+(ts.length?ts.map(x=>`<button data-summon="${x.id}">${x.isBot?'BOT':(x.playerName||'ALLY')}</button>`).join(''):`<button disabled>NO TARGETS</button>`)+`<button class="close">CANCEL</button>`;m.classList.add('show');m.querySelectorAll('[data-summon]').forEach(b=>b.onclick=()=>{mpSend({type:'command',command:'summon',targetId:b.dataset.summon});closeSergeantMenu();});m.querySelector('.close').onclick=closeSergeantMenu;
+  if(player.classId!=='sergeant')return;
+  const m=document.getElementById('sergeantMenu');if(!m)return;
+  const ts=friendlyTargets().filter(x=>x.id!==netPlayerId);
+  m.innerHTML=`<div class="title">SUMMON FRIENDLY</div><div class="hint">50 Energy normally · flag carrier costs 150 Energy · Jammer can block it.</div>`+
+    (ts.length?ts.map(x=>`<button data-summon="${x.id}">${summonTargetLabel(x)}</button>`).join(''):`<button disabled>NO TARGETS</button>`)+
+    `<button class="close">CANCEL</button>`;
+  m.classList.add('show');
+  m.querySelectorAll('[data-summon]').forEach(b=>b.onclick=()=>{mpSend({type:'command',command:'summon',targetId:b.dataset.summon});closeSergeantMenu();});
+  m.querySelector('.close').onclick=closeSergeantMenu;
 }
 function openTUtilityMenu(){
-  if(!netJoined||player.deadTimer>0)return;const m=document.getElementById('sergeantMenu');if(!m)return;const sgts=friendlyTargets().filter(x=>x.id!==netPlayerId&&x.classId==='sergeant');const order=['footman','heavy','assassin','medic','sergeant'];
-  m.innerHTML=`<div class="title">TELEPORT TO SERGEANT</div><div class="hint">150 Energy.</div>`+(sgts.length?sgts.map(x=>`<button data-teleport="${x.id}">${x.isBot?'BOT SERGEANT':(x.playerName||'SERGEANT')}</button>`).join(''):`<button disabled>NO FRIENDLY SERGEANT</button>`)+`<div class="title" style="margin-top:9px">CHANGE CLASS</div><div class="hint">100% Energy · 3s stationary charge · respawns at base</div><div class="classGrid">${order.map(id=>`<button data-change="${id}" ${id===player.classId?'disabled':''}>${classes[id].name}</button>`).join('')}</div><button class="close">CANCEL</button>`;m.classList.add('show');m.querySelectorAll('[data-teleport]').forEach(b=>b.onclick=()=>{mpSend({type:'command',command:'teleport',targetId:b.dataset.teleport});closeSergeantMenu();});m.querySelectorAll('[data-change]').forEach(b=>b.onclick=()=>{mpSend({type:'command',command:'class_change',classId:b.dataset.change});closeSergeantMenu();});m.querySelector('.close').onclick=closeSergeantMenu;
+  if(!netJoined||player.deadTimer>0)return;
+  const m=document.getElementById('sergeantMenu');if(!m)return;
+  const friendlies=friendlyTargets().filter(x=>x.id!==netPlayerId);
+  const sgts=friendlies.filter(x=>x.classId==='sergeant');
+  const order=['footman','heavy','assassin','medic','sergeant'];
+  const tpCost=player.carryingFlagTeam?225:150;
+  const summonSection=player.classId==='sergeant'
+    ? `<div class="title">SUMMON FRIENDLY</div><div class="hint">Flag carrier costs 150 Energy.</div>`+
+      (friendlies.length?friendlies.map(x=>`<button data-summon="${x.id}">${summonTargetLabel(x)}</button>`).join(''):`<button disabled>NO TARGETS</button>`)
+    : '';
+  const flagDropHint=player.carryingFlagTeam?' · drops carried flag':'';
+  m.innerHTML=summonSection+
+    `<div class="title" style="margin-top:${summonSection?'9px':'0'}">TELEPORT TO SERGEANT</div><div class="hint">${tpCost} Energy${player.carryingFlagTeam?' while carrying flag':''}.</div>`+
+    (sgts.length?sgts.map(x=>`<button data-teleport="${x.id}">${x.isBot?'BOT SERGEANT':(x.playerName||'SERGEANT')}</button>`).join(''):`<button disabled>NO FRIENDLY SERGEANT</button>`)+
+    `<div class="title" style="margin-top:9px">CHANGE CLASS</div><div class="hint">100% Energy · 3s stationary charge · respawns at base${flagDropHint}</div><div class="classGrid">${order.map(id=>`<button data-change="${id}" ${id===player.classId?'disabled':''}>${classes[id].name}</button>`).join('')}</div><button class="close">CANCEL</button>`;
+  m.classList.add('show');
+  m.querySelectorAll('[data-summon]').forEach(b=>b.onclick=()=>{mpSend({type:'command',command:'summon',targetId:b.dataset.summon});closeSergeantMenu();});
+  m.querySelectorAll('[data-teleport]').forEach(b=>b.onclick=()=>{mpSend({type:'command',command:'teleport',targetId:b.dataset.teleport});closeSergeantMenu();});
+  m.querySelectorAll('[data-change]').forEach(b=>b.onclick=()=>{mpSend({type:'command',command:'class_change',classId:b.dataset.change});closeSergeantMenu();});
+  m.querySelector('.close').onclick=closeSergeantMenu;
 }
 
 const mpCreateBtn=document.getElementById('mpCreateBtn');
@@ -2110,7 +2157,7 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 c.addEventListener('mousemove',e=>{mouse.x=e.clientX; mouse.y=e.clientY;});
 c.addEventListener('contextmenu',e=>e.preventDefault());
-c.addEventListener('mousedown',e=>{ if(e.button===0) mouse.left=true; if(e.button===1) mouse.middle=true; if(e.button===2) mouse.right=true; });
+c.addEventListener('mousedown',e=>{ if(e.button===0) mouse.left=true; if(e.button===1){ mouse.middle=true; if(netJoined&&player.classId==='medic'&&player.deadTimer<=0) mpCommand('heal_start'); } if(e.button===2) mouse.right=true; });
 addEventListener('mouseup',e=>{ if(e.button===0) mouse.left=false; if(e.button===1) mouse.middle=false; if(e.button===2) mouse.right=false; });
 
 function makeStick(id){
@@ -2486,7 +2533,7 @@ function firePlayerSlot3(dt){
       player.grenadeCd=w.cooldown;
     }
   }else if(cls.weapon3.kind==='heal'){
-    const healCost=player.maxEnergy*0.10;
+    const healCost=player.maxEnergy*0.20;
     player.healCd=Math.max(0,(player.healCd||0)-dt);
 
     const movingNow=Math.hypot(player.vx,player.vy)>2.5 || !!player.sprinting;
@@ -2528,7 +2575,7 @@ function firePlayerSlot3(dt){
         }
       }
     }else{
-      // Heal cannot be held/charged while running or after releasing MMB.
+      // Legacy local fallback; authoritative multiplayer Heal is press-to-start.
       player.healCharge=0;
     }
   }
@@ -2622,7 +2669,8 @@ function update(dt){
     }
 
     if(player.sprinting){
-      player.energy=Math.max(0,player.energy-player.maxEnergy*.08*dt);
+      const flagSprintMult=player.carryingFlagTeam?1.35:1;
+      player.energy=Math.max(0,player.energy-player.maxEnergy*.08*flagSprintMult*dt);
       if(player.energy<=0)player.sprinting=false;
     }
 
@@ -2672,7 +2720,17 @@ function update(dt){
 }
 
 
-function updateAbilityButton(){const b=document.getElementById('repulsorBtn');if(!b)return;if(player.classId==='heavy')b.innerHTML=(player.fortifyTimer||0)>0?`FORTIFY<br>${(player.fortifyTimer||0).toFixed(1)}s`:(player.fortifyCd||0)>0?`FORTIFY<br>${player.fortifyCd.toFixed(1)}s`:'FORTIFY<br>R';else if(player.classId==='assassin')b.innerHTML=(player.cloakTimer||0)>0?`CLOAK<br>${player.cloakTimer.toFixed(1)}s`:'CLOAK<br>R';else if(player.classId==='sergeant')b.innerHTML='SUMMON<br>R';else b.innerHTML='REPULSOR<br>R';}
+function updateAbilityButton(){
+  const b=document.getElementById('repulsorBtn');if(!b)return;
+  if(player.classId==='heavy')b.innerHTML=(player.fortifyTimer||0)>0?`FORTIFY<br>${(player.fortifyTimer||0).toFixed(1)}s`:(player.fortifyCd||0)>0?`FORTIFY<br>${player.fortifyCd.toFixed(1)}s`:'FORTIFY<br>R';
+  else if(player.classId==='assassin')b.innerHTML=player.carryingFlagTeam?'CLOAK<br>FLAG':(player.cloakTimer||0)>0?`CLOAK<br>${player.cloakTimer.toFixed(1)}s`:'CLOAK<br>R';
+  else if(player.classId==='sergeant')b.innerHTML='SUMMON<br>R';
+  else{
+    const charges=player.repulsorCharges??2;
+    const cd=player.repulsorCd||0;
+    b.innerHTML=cd>0?`REPULSOR ${charges}/2<br>${cd.toFixed(1)}s`:`REPULSOR ${charges}/2<br>R`;
+  }
+}
 
 function drawKnifeSlash(ent){
   const remaining=ent.knifeAnim||0;
@@ -2730,6 +2788,7 @@ function drawKnifeSlash(ent){
 }
 
 function drawDisruptionZaps(ent){
+  if(!ent || ent.alive===false || ent.hp<=0) return;
   const visualRemaining=ent.zapVisualTimer||0;
   if(visualRemaining<=0) return;
 
@@ -3027,15 +3086,16 @@ function draw(){
     if(ally.classId==='assassin'&&(ally.cloakTimer||0)>0){ctx.save();ctx.globalAlpha=.42;drawSoldier(ally.x,ally.y,ally.angle,teamBodyColor(ally.team),teamDetailColor(ally.team),ally.r,ally.classId);ctx.restore();}else drawSoldier(ally.x,ally.y,ally.angle,teamBodyColor(ally.team),teamDetailColor(ally.team),ally.r,ally.classId);
     drawCarriedFlag(ally);
 
+    // HP is always the top bar; Energy is always the bottom bar.
     ctx.fillStyle='rgba(0,0,0,.5)';
-    ctx.fillRect(ally.x-18,ally.y-35,36,4);
-    ctx.fillStyle='#68b8ff';
-    ctx.fillRect(ally.x-18,ally.y-35,36*(ally.energy/ally.maxEnergy),4);
+    ctx.fillRect(ally.x-18,ally.y-35,36,5);
+    ctx.fillStyle='#72e27e';
+    ctx.fillRect(ally.x-18,ally.y-35,36*clamp(ally.hp/ally.maxHp,0,1),5);
 
     ctx.fillStyle='rgba(0,0,0,.5)';
-    ctx.fillRect(ally.x-18,ally.y-29,36,5);
-    ctx.fillStyle='#72e27e';
-    ctx.fillRect(ally.x-18,ally.y-29,36*(ally.hp/ally.maxHp),5);
+    ctx.fillRect(ally.x-18,ally.y-28,36,4);
+    ctx.fillStyle='#68b8ff';
+    ctx.fillRect(ally.x-18,ally.y-28,36*clamp(ally.energy/ally.maxEnergy,0,1),4);
 
     ctx.font='bold 10px system-ui';
     ctx.fillStyle='rgba(175,220,255,.95)';
@@ -3045,6 +3105,7 @@ function draw(){
 
   // Enemies fade in/out as shared LOS is gained or lost.
   for(const e of enemies){
+    if(e.alive===false||e.hp<=0) continue;
     const vis=clamp(e.visAlpha||0,0,1);
     if(vis<=0.01) continue;
 
@@ -3055,10 +3116,11 @@ function draw(){
       const ep=clamp(e.energy/e.maxEnergy,0,1);ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle=`rgba(104,184,255,${.12*ep})`;ctx.beginPath();ctx.arc(0,0,e.r+7,0,Math.PI*2);ctx.fill();ctx.restore();
     }
     drawDisruptionZaps(e);
-    const body=e.classId==='heavy'?'#c86f45':e.classId==='assassin'?'#9a78ff':e.classId==='medic'?'#42c98e':e.classId==='sergeant'?'#d6a83d':(e.team==='blue'?'#4d94d8':'#df5757');
-    const detail=e.classId==='heavy'?'#ffe2cf':e.classId==='assassin'?'#ead8ff':e.classId==='medic'?'#d9ffef':e.classId==='sergeant'?'#fff0a8':'#ffd2d2';
+    // Every living model uses team color; class is communicated by silhouette.
+    const body=teamBodyColor(e.team);
+    const detail=teamDetailColor(e.team);
 
-    drawFortifyShield(e); drawDisruptionZaps(e);
+    drawFortifyShield(e);
     if(e.classId==='assassin'&&(e.cloakTimer||0)>0){ctx.save();ctx.globalAlpha=.48;drawSoldier(e.x,e.y,e.angle,body,detail,e.r,e.classId);ctx.restore();}else drawSoldier(e.x,e.y,e.angle,body,detail,e.r,e.classId);
     drawKnifeSlash(e); drawCarriedFlag(e);
 
@@ -3070,8 +3132,8 @@ function draw(){
     const ew=ctx.measureText(enemyLabel).width;
     ctx.fillText(enemyLabel,e.x-ew/2,e.y-30);
     if(!e.statsHidden){
-      ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(e.x-20,e.y-24,40,4);ctx.fillStyle='#68b8ff';ctx.fillRect(e.x-20,e.y-24,40*clamp(e.energy/e.maxEnergy,0,1),4);
-      ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(e.x-20,e.y-18,40,5);ctx.fillStyle='#72e27e';ctx.fillRect(e.x-20,e.y-18,40*clamp(e.hp/e.maxHp,0,1),5);
+      ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(e.x-20,e.y-24,40,5);ctx.fillStyle='#72e27e';ctx.fillRect(e.x-20,e.y-24,40*clamp(e.hp/e.maxHp,0,1),5);
+      ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(e.x-20,e.y-17,40,4);ctx.fillStyle='#68b8ff';ctx.fillRect(e.x-20,e.y-17,40*clamp(e.energy/e.maxEnergy,0,1),4);
     }
     ctx.restore();
   }
@@ -3124,10 +3186,10 @@ function draw(){
         // Green plasma pistol orb with a restrained glow.
         ctx.save();
         ctx.translate(b.x,b.y);
-        ctx.fillStyle='rgba(65,255,105,.18)';
-        ctx.beginPath(); ctx.arc(0,0,b.r+2.2,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle='rgba(105,255,130,.38)';
+        ctx.fillStyle='rgba(65,255,105,.16)';
         ctx.beginPath(); ctx.arc(0,0,b.r+1.0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(105,255,130,.36)';
+        ctx.beginPath(); ctx.arc(0,0,b.r+.35,0,Math.PI*2); ctx.fill();
         ctx.fillStyle='rgba(205,255,210,.98)';
         ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill();
         ctx.restore();
@@ -3154,7 +3216,20 @@ function draw(){
     } else {
       const alpha=b.fade ? Math.max(.10,bulletDamageScale(b)) : 1;
       ctx.fillStyle=b.owner==='e'?`rgba(255,139,139,${alpha})`:`rgba(255,227,123,${alpha})`;
-      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+      if(b.weaponKind==='medicGun'){
+        // Carbine: compact bullet-shaped slug, larger than SMG/pistol shots but
+        // smaller than the Rifle tracer.
+        const a=Math.atan2(b.vy,b.vx);ctx.save();ctx.translate(b.x,b.y);ctx.rotate(a);
+        ctx.beginPath();ctx.roundRect(-5.2,-1.8,10.4,3.6,1.5);ctx.fill();
+        ctx.fillStyle='rgba(255,250,215,.92)';ctx.fillRect(1.5,-.60,3.0,1.2);ctx.restore();
+      }else if(b.rifleBullet||b.weaponKind==='rifle'){
+        const a=Math.atan2(b.vy,b.vx);ctx.save();ctx.translate(b.x,b.y);ctx.rotate(a);
+        ctx.globalAlpha=alpha*.26;ctx.fillRect(-11,-2.7,22,5.4);ctx.globalAlpha=alpha;
+        ctx.beginPath();ctx.roundRect(-7.5,-2.1,15,4.2,2.1);ctx.fill();ctx.restore();
+      }else{
+        // Physical pistol remains the smallest physical projectile.
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+      }
     }
   }
 
@@ -3174,8 +3249,8 @@ function draw(){
     drawSensorField(player); drawJammerField(player); drawFortifyShield(player); drawDisruptionZaps(player);
     if(player.classId==='assassin'&&(player.cloakTimer||0)>0){ctx.save();ctx.globalAlpha=.48;drawSoldier(player.x,player.y,player.angle,teamBodyColor(player.team),teamDetailColor(player.team),player.r,player.classId);ctx.restore();}else drawSoldier(player.x,player.y,player.angle,teamBodyColor(player.team),teamDetailColor(player.team),player.r,player.classId);
     drawKnifeSlash(player); drawCarriedFlag(player);
-    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(player.x-25,player.y-36,50,5); ctx.fillStyle='#68b8ff'; ctx.fillRect(player.x-25,player.y-36,50*(player.energy/player.maxEnergy),5);
-    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(player.x-25,player.y-29,50,6); ctx.fillStyle='#72e27e'; ctx.fillRect(player.x-25,player.y-29,50*(player.hp/player.maxHp),6);
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(player.x-25,player.y-36,50,6); ctx.fillStyle='#72e27e'; ctx.fillRect(player.x-25,player.y-36,50*clamp(player.hp/player.maxHp,0,1),6);
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(player.x-25,player.y-28,50,5); ctx.fillStyle='#68b8ff'; ctx.fillRect(player.x-25,player.y-28,50*clamp(player.energy/player.maxEnergy,0,1),5);
     ctx.font='bold 11px system-ui'; ctx.fillStyle='#8fd0ff'; ctx.fillText(`E ${Math.ceil(player.energy)}/${player.maxEnergy} • ${Math.round(100*player.energy/player.maxEnergy)}% DR`,player.x-38,player.y-43);
     ctx.fillStyle='#9bf0a2'; ctx.fillText(`H ${Math.ceil(player.hp)}/${player.maxHp}`,player.x-28,player.y-55);
   } else {
@@ -3262,13 +3337,14 @@ function draw(){
   const fg=generators.find(g=>g.team===player.team);
   const fgh=document.getElementById('friendlyGenerator');
   if(fgh&&fg)fgh.textContent=`${player.team.toUpperCase()} GENERATOR: ${Math.ceil(fg.hp)}/${fg.maxHp}`;
+  const flagLine=`Flags ${netFlagScore.blue||0}-${netFlagScore.red||0} (first to ${netFlagWinScore})`;
   document.getElementById('score').textContent=!roundStarted
-    ? `Choose a class to start`
+    ? `Choose a class to start | ${flagLine}`
     : gameOver
-      ? (matchFrozen?`${winningTeam?.toUpperCase()} TEAM WINS • New match incoming`:`${winningTeam?.toUpperCase()} TEAM WINS • Return to base in ${postVictoryTimer.toFixed(1)}s`)
+      ? (matchFrozen?`${winningTeam?.toUpperCase()} TEAM WINS • ${flagLine} • New match incoming`:`${winningTeam?.toUpperCase()} TEAM WINS • ${flagLine} • Return to base in ${postVictoryTimer.toFixed(1)}s`)
       : player.deadTimer>0
-        ? `Respawning: ${player.deadTimer.toFixed(1)}s | Kills: ${kills} | Deaths: ${deaths}`
-        : `${player.regenSlowTimer>0?'REGEN 35% | ':''}${player.sprinting?'SPRINT | ':''}${player.zapTimer>0?'ZAPPED | ':''}Kills: ${kills} | Deaths: ${deaths} | Regen wait: ${Math.max(0,(4+(player.zapRechargeExtra||0))-(player.lastHit||0)).toFixed(1)}s`;
+        ? `${flagLine} | Respawning: ${player.deadTimer.toFixed(1)}s | Kills: ${kills} | Deaths: ${deaths}`
+        : `${flagLine} | ${player.regenSlowTimer>0?'REGEN 35% | ':''}${player.sprinting?'SPRINT | ':''}${player.zapTimer>0?'ZAPPED | ':''}Kills: ${kills} | Deaths: ${deaths} | Regen wait: ${Math.max(0,(4+(player.zapRechargeExtra||0))-(player.lastHit||0)).toFixed(1)}s`;
   updateAbilityButton();
 }
 

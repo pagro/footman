@@ -1,8 +1,8 @@
 {
-  "name": "infantry-v183-multiplayer-4v4",
+  "name": "infantry-v185-multiplayer-4v4",
   "version": "1.0.0",
   "private": true,
-  "description": "Server-authoritative 4v4 Infantry browser prototype based on the v183 single-player balance",
+  "description": "Server-authoritative 4v4 Infantry browser prototype based on the v183 gameplay baseline with v185 multiplayer balance updates",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
